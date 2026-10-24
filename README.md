@@ -54,3 +54,10 @@ xattr -dr com.apple.quarantine "/Applications/Hosts Manager.app"
 
 ตอนบันทึก แอปจะขอรหัสผ่าน admin ผ่าน macOS เพื่อเขียน `/etc/hosts`
 Saving asks for an administrator password through macOS to write `/etc/hosts`.
+
+## ☕ Support this App
+
+If you find **Hosts Manager** helpful, you can support the developer by buying a coffee:
+ถ้า **Hosts Manager** มีประโยชน์กับคุณ สามารถสนับสนุนผู้พัฒนาด้วยการเลี้ยงกาแฟได้ที่นี่:
+
+👉&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="https://buymeacoffee.com/cheuachatchai" >![buy_me_a_coffee](https://github.com/conseilgouz/plg_system_cgwebp_j4/assets/19435246/4fda4cb5-64f1-4717-81ae-c71a0fc26c2d)</a>
