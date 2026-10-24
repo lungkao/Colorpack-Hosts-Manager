@@ -1,0 +1,9 @@
+build/
+dist/
+*.log
+*.patch
+*.b64
+.DS_Store
+AppIcon.iconset/
+AppIcon.icns
+icon_1024.png
