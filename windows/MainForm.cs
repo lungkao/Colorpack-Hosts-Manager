@@ -648,5 +648,60 @@ namespace HostsManager
             if (doc.SevereCount() < 1) throw new Exception("expected a severe duplicate in smoke data");
             Close();
         }
+
+        /// <summary>ถ่ายภาพหน้าจอทุกหน้าต่างทั้งสองภาษา (ใช้ใน CI) / capture screenshots of every window</summary>
+        public void CaptureScreens(string dir)
+        {
+            smoke = true;
+            Directory.CreateDirectory(dir);
+            StartPosition = FormStartPosition.Manual;
+            Bounds = Screen.PrimaryScreen.WorkingArea;
+            Show();
+            doc.Add("203.0.113.10", new[] { "client-shop.co.th", "colorpack-demo.com" }, true, "ลูกค้า A / client A");
+            doc.Add("203.0.113.20", new[] { "news-site.com" }, true, "");
+            doc.Entries.Add(new HostEntry { Ip = "203.0.113.99", Hosts = "news-site.com", Note = "old server" });
+            doc.Entries.Add(new HostEntry { Ip = "203.0.113.30", Hosts = "paused-site.org", Enabled = false });
+            RebuildGrid();
+            checkInput.Text = "client-shop.co.th";
+            foreach (var lang in new[] { Lang.Th, Lang.En })
+            {
+                L.Lang = lang;
+                ApplyTexts();
+                var tag = lang == Lang.Th ? "th" : "en";
+                checkResult.Text = L.T("โดเมน: client-shop.co.th\nเครื่องนี้เห็น (hosts/แคช):  203.0.113.10\nDNS สาธารณะ (1.1.1.1):     198.51.100.7\n→ เครื่องนี้ชี้ไปคนละที่กับ DNS จริง (กำลังใช้ค่าจาก hosts)",
+                                       "Domain: client-shop.co.th\nThis PC sees (hosts/cache): 203.0.113.10\nPublic DNS (1.1.1.1):        198.51.100.7\n→ This PC points somewhere different from real DNS (using hosts)");
+                tabs.SelectedTab = tabList;
+                Capture(this, Path.Combine(dir, $"1-main-{tag}.png"));
+                tabs.SelectedTab = tabRaw;
+                Capture(this, Path.Combine(dir, $"2-raw-{tag}.png"));
+                tabs.SelectedTab = tabList;
+                using (var a = new AddDialog("203.0.113.10"))
+                {
+                    a.Show(this);
+                    Capture(a, Path.Combine(dir, $"3-add-{tag}.png"));
+                    a.Close();
+                }
+                using (var i = new ImportDialog(doc.ImportCandidates()))
+                {
+                    i.Show(this);
+                    Capture(i, Path.Combine(dir, $"4-import-{tag}.png"));
+                    i.Close();
+                }
+            }
+            Close();
+        }
+
+        static void Capture(Form f, string path)
+        {
+            f.Activate();
+            f.BringToFront();
+            for (int k = 0; k < 4; k++) { Application.DoEvents(); System.Threading.Thread.Sleep(150); }
+            var b = f.Bounds;
+            using (var bmp = new Bitmap(b.Width, b.Height))
+            {
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(b.Location, Point.Empty, b.Size);
+                bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            }
+        }
     }
 }

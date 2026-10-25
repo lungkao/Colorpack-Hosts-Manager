@@ -53,6 +53,12 @@ namespace HostsManager
                 }
             }
 
+            if (args.Contains("--screenshots"))
+            {
+                using (var f = new MainForm(hostsPath)) f.CaptureScreens(ArgAfter("--screenshots") ?? "screenshots");
+                return 0;
+            }
+
             Application.ThreadException += (s, e) =>
                 MessageBox.Show(e.Exception.Message, "Hosts Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Application.Run(new MainForm(hostsPath));

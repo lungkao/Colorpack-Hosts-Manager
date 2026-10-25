@@ -39,6 +39,21 @@ jobs:
           Get-Content $log
           if ($p.ExitCode -ne 0) { throw "smoke test failed" }
 
+      - name: Screenshots
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "windows/bin/Release/net48/HostsManager.exe"
+          $hosts = Join-Path $env:RUNNER_TEMP "hosts-copy"
+          $dir = Join-Path $env:RUNNER_TEMP "screenshots"
+          $p = Start-Process $exe -ArgumentList "--screenshots", "`"$dir`"", "--hosts", "`"$hosts`"" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "screenshots timed out" }
+          Get-ChildItem $dir | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ${{ runner.temp }}/screenshots/*.png
+
       - name: Package
         shell: pwsh
         run: |
