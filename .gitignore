@@ -7,3 +7,5 @@ dist/
 AppIcon.iconset/
 AppIcon.icns
 icon_1024.png
+bin/
+obj/

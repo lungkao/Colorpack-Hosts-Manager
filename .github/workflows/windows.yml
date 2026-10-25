@@ -1,0 +1,55 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: dotnet build windows/HostsManager.csproj -c Release -nologo
+
+      - name: Self-test (core logic)
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "windows/bin/Release/net48/HostsManager.exe"
+          $report = Join-Path $env:RUNNER_TEMP "selftest.txt"
+          $p = Start-Process $exe -ArgumentList "--selftest", "`"$report`"" -Wait -PassThru
+          Get-Content $report
+          if ($p.ExitCode -ne 0) { throw "self-test failed" }
+
+      - name: Smoke test (opens every window, using a copy of the hosts file)
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "windows/bin/Release/net48/HostsManager.exe"
+          $hosts = Join-Path $env:RUNNER_TEMP "hosts-copy"
+          Copy-Item "$env:SystemRoot\System32\drivers\etc\hosts" $hosts
+          Add-Content $hosts "203.0.113.5 legacy-site.com www.legacy-site.com"
+          $log = Join-Path $env:RUNNER_TEMP "smoke.txt"
+          $p = Start-Process $exe -ArgumentList "--smoke", "`"$log`"", "--hosts", "`"$hosts`"" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "smoke test timed out" }
+          Get-Content $log
+          if ($p.ExitCode -ne 0) { throw "smoke test failed" }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "dist/HostsManager-windows"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item "windows/bin/Release/net48/HostsManager.exe" $out
+          Copy-Item "windows/README-Windows.txt" "$out/README.txt"
+          Compress-Archive -Path "$out/*" -DestinationPath "dist/HostsManager-windows.zip" -Force
+          (Get-FileHash "dist/HostsManager-windows.zip" -Algorithm SHA256).Hash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HostsManager-windows
+          path: dist/HostsManager-windows.zip
