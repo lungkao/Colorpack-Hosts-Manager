@@ -22,7 +22,8 @@ namespace HostsManager
         {
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            Font = new Font("Segoe UI", 9.75f);
+            Font = CP.Body;
+            BackColor = CP.Paper;
             Text = L.T("ชี้โดเมนไป server ใหม่", "Point domains to a new server");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
@@ -36,11 +37,11 @@ namespace HostsManager
             t.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 380));
 
-            ip = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 380, Text = lastIp ?? "", Font = new Font("Consolas", 10f) };
+            ip = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 400, Text = lastIp ?? "", Font = CP.Mono };
             ip.TextChanged += (s, e) => ip.ForeColor = ip.Text.Length == 0 || Util.IsValidIP(ip.Text) ? SystemColors.WindowText : Color.Red;
-            domains = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 380, Multiline = true, Height = 70, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 10f) };
+            domains = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 400, Multiline = true, Height = 80, ScrollBars = ScrollBars.Vertical, Font = CP.Mono };
             www = new CheckBox { Text = L.T("เพิ่ม www. ให้อัตโนมัติ", "Add www. automatically"), Checked = true, AutoSize = true };
-            note = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 380 };
+            note = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Width = 400 };
 
             AddRow(t, L.T("IP server ใหม่", "New server IP"), ip);
             AddRow(t, L.T("โดเมน", "Domains"), domains);
@@ -48,7 +49,7 @@ namespace HostsManager
             {
                 Text = L.T("ใส่ได้หลายโดเมน คั่นด้วยเว้นวรรค จุลภาค หรือขึ้นบรรทัดใหม่",
                            "Several allowed — separate with spaces, commas or new lines"),
-                AutoSize = true, ForeColor = Color.Gray
+                AutoSize = true, ForeColor = CP.Gray, Font = CP.Small
             });
             AddRow(t, "", www);
             AddRow(t, L.T("หมายเหตุ", "Note"), note);
@@ -56,11 +57,11 @@ namespace HostsManager
             {
                 Text = L.T("ถ้าโดเมนมีอยู่แล้ว จะอัปเดต IP ให้แทนการเพิ่มซ้ำ",
                            "If a domain already exists, its IP is updated instead of adding a duplicate"),
-                AutoSize = true, ForeColor = Color.Gray
+                AutoSize = true, ForeColor = CP.BlueDeep, BackColor = CP.BlueTint, Font = CP.Small, Padding = new Padding(8, 4, 8, 4)
             });
 
-            var ok = new Button { Text = L.T("เพิ่ม", "Add"), AutoSize = true, MinimumSize = new Size(90, 0) };
-            var cancel = new Button { Text = L.T("ยกเลิก", "Cancel"), AutoSize = true, MinimumSize = new Size(90, 0), DialogResult = DialogResult.Cancel };
+            var ok = new RoundButton(RoundButton.Kinds.Primary) { Text = L.T("เพิ่ม", "Add"), MinimumSize = new Size(100, 0) };
+            var cancel = new RoundButton { Text = L.T("ยกเลิก", "Cancel"), MinimumSize = new Size(100, 0), DialogResult = DialogResult.Cancel };
             ok.Click += (s, e) =>
             {
                 if (!Util.IsValidIP(ip.Text))
@@ -95,7 +96,7 @@ namespace HostsManager
         static void AddRow(TableLayoutPanel t, string label, Control c)
         {
             int r = t.RowCount;
-            t.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(0, 7, 10, 0) }, 0, r);
+            t.Controls.Add(new Label { Text = label, AutoSize = true, Font = CP.Label, ForeColor = CP.Gray, Margin = new Padding(0, 8, 12, 0) }, 0, r);
             c.Margin = new Padding(0, 4, 0, 4);
             t.Controls.Add(c, 1, r);
             t.RowCount++;
@@ -109,7 +110,7 @@ namespace HostsManager
         readonly CheckBox showAll;
         readonly DataGridView list;
         readonly DataGridViewCheckBoxColumn colSel;
-        readonly Label count;
+        readonly Label count, emptyNote;
         readonly Button ok;
         bool updating;
 
@@ -118,7 +119,8 @@ namespace HostsManager
             Candidates = candidates;
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            Font = new Font("Segoe UI", 9.75f);
+            Font = CP.Body;
+            BackColor = CP.Paper;
             Text = L.T("เลือกนำเข้ารายการเดิม", "Choose entries to import");
             ClientSize = new Size(900, 580);
             MinimumSize = new Size(640, 400);
@@ -129,17 +131,17 @@ namespace HostsManager
 
             var head = new Label
             {
-                Dock = DockStyle.Top, AutoSize = false, Height = 52, Padding = new Padding(0, 4, 0, 0),
+                Dock = DockStyle.Top, AutoSize = false, Height = 64, Padding = new Padding(0, 4, 0, 0), Font = CP.Small, ForeColor = CP.Gray,
                 Text = L.T("เลือกบรรทัดจากไฟล์ hosts เดิมที่จะนำเข้ามาจัดการ\nบรรทัดที่ไม่ได้เลือกจะอยู่ในไฟล์เหมือนเดิม ไม่ถูกลบ · บรรทัดของระบบ (localhost) ไม่แสดงในนี้",
                            "Choose lines from the existing hosts file to manage here.\nUnselected lines stay in the file untouched · system lines (localhost) are not listed")
             };
 
-            search = new TextBox { Width = 320 };
+            search = new TextBox { Width = 340, Margin = new Padding(0, 6, 8, 0) };
             SetCue(search, L.T("ค้นหา IP / โดเมน / หมายเหตุ", "Search IP / domain / note"));
             search.TextChanged += (s, e) => Rebuild();
-            var selAll = new Button { Text = L.T("☑ เลือกทั้งหมด", "☑ Select all"), AutoSize = true };
+            var selAll = new RoundButton(RoundButton.Kinds.Secondary, small: true) { Text = L.T("☑ เลือกทั้งหมด", "☑ Select all") };
             selAll.Click += (s, e) => SelectVisible(true);
-            var selNone = new Button { Text = L.T("☐ ไม่เลือกเลย", "☐ Select none"), AutoSize = true };
+            var selNone = new RoundButton(RoundButton.Kinds.Secondary, small: true) { Text = L.T("☐ ไม่เลือกเลย", "☐ Select none") };
             selNone.Click += (s, e) => SelectVisible(false);
             var tools = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false };
             tools.Controls.AddRange(new Control[] { search, selAll, selNone });
@@ -161,12 +163,12 @@ namespace HostsManager
                 AllowUserToResizeRows = false,
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                BackgroundColor = SystemColors.Window,
-                BorderStyle = BorderStyle.FixedSingle,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
+            CP.StyleGrid(list);
+            list.BorderStyle = BorderStyle.FixedSingle;
             colSel = new DataGridViewCheckBoxColumn { HeaderText = "", Width = 36 };
-            var mono = new Font("Consolas", 9.75f);
+            var mono = CP.Mono;
             var cIp = new DataGridViewTextBoxColumn { HeaderText = "IP", Width = 140, ReadOnly = true };
             cIp.DefaultCellStyle.Font = mono;
             var cHosts = new DataGridViewTextBoxColumn { HeaderText = L.T("โดเมน", "Domains"), AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true };
@@ -194,18 +196,24 @@ namespace HostsManager
                 cell.Value = !(cell.Value is bool b && b);
             };
 
-            count = new Label { AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(0, 8, 0, 0) };
-            ok = new Button { AutoSize = true, MinimumSize = new Size(110, 0) };
+            count = new Label { AutoSize = true, ForeColor = CP.Gray, Font = CP.Small, Margin = new Padding(0, 8, 0, 0) };
+            emptyNote = new Label
+            {
+                AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
+                Font = CP.H3, ForeColor = CP.Ink, BackColor = CP.Paper, Visible = false
+            };
+            ok = new RoundButton(RoundButton.Kinds.Primary) { MinimumSize = new Size(120, 0) };
             ok.Click += (s, e) => { DialogResult = DialogResult.OK; };
-            var cancel = new Button { Text = L.T("ยกเลิก", "Cancel"), AutoSize = true, MinimumSize = new Size(90, 0), DialogResult = DialogResult.Cancel };
+            var cancel = new RoundButton { Text = L.T("ยกเลิก", "Cancel"), MinimumSize = new Size(100, 0), DialogResult = DialogResult.Cancel };
             var bottomRight = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
             bottomRight.Controls.Add(ok);
             bottomRight.Controls.Add(cancel);
-            var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 8, 0, 0) };
+            var bottom = new Panel { Dock = DockStyle.Bottom, Height = 56, Padding = new Padding(0, 8, 0, 0) };
             bottom.Controls.Add(count);
             bottom.Controls.Add(bottomRight);
 
             var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 10, 14, 10) };
+            body.Controls.Add(emptyNote);
             body.Controls.Add(list);
             body.Controls.Add(showAll);
             body.Controls.Add(tools);
@@ -245,6 +253,18 @@ namespace HostsManager
             }
             updating = false;
             list.ClearSelection();
+            // ไม่มีอะไรให้นำเข้า → บอกตรงๆ / say clearly when there is nothing to import
+            bool none = list.Rows.Count == 0;
+            emptyNote.Visible = none;
+            list.Visible = !none;
+            int hidden = Candidates.Count(c => !c.RealDomain);
+            emptyNote.Text = search.Text.Trim().Length > 0
+                ? L.T("ไม่พบรายการที่ตรงกับคำค้น", "Nothing matches your search")
+                : L.T("✓ ไม่พบโดเมนจริงในไฟล์ hosts เดิมที่ยังไม่ได้นำเข้า", "✓ No real domains left in the existing hosts file")
+                  + (hidden > 0 && !showAll.Checked
+                      ? "\n\n" + L.T($"ซ่อนชื่อภายใน {hidden} รายการ (เช่น ชื่อเครื่อง, .local) — ติ๊ก “แสดงทั้งหมด” ด้านบนเพื่อดู",
+                                       $"{hidden} internal names hidden (hostnames, .local) — tick “Show all” above to see them")
+                      : "");
             UpdateCount();
         }
 

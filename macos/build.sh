@@ -35,6 +35,10 @@ if [[ -f icon.swift && ! -f AppIcon.icns ]]; then
   iconutil -c icns AppIcon.iconset -o AppIcon.icns
 fi
 if [[ -f AppIcon.icns ]]; then cp AppIcon.icns "$OUT/Contents/Resources/AppIcon.icns"; fi
+# ฟอนต์ Kanit + โลโก้ Colorpack / bundle Kanit fonts and the Colorpack logo
+mkdir -p "$OUT/Contents/Resources/Fonts"
+cp ../brand/fonts/Kanit-*.ttf "$OUT/Contents/Resources/Fonts/"
+cp ../brand/colorpack-logo-on-*.png "$OUT/Contents/Resources/"
 
 cat > "$OUT/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -46,11 +50,13 @@ cat > "$OUT/Contents/Info.plist" <<'EOF'
   <key>CFBundleName</key><string>Hosts Manager</string>
   <key>CFBundleDisplayName</key><string>Hosts Manager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>1.4</string>
+  <key>CFBundleVersion</key><string>1.4</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>ATSApplicationFontsPath</key><string>Fonts</string>
+  <key>NSHumanReadableCopyright</key><string>© 2026 COLORPACK CREATION CO., LTD.</string>
 </dict>
 </plist>
 EOF

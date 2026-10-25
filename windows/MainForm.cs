@@ -1,9 +1,10 @@
-// Hosts Manager (Windows) — หน้าต่างหลัก / main window
+// Hosts Manager (Windows) — หน้าต่างหลัก (ธีม Colorpack) / main window (Colorpack theme)
 
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -20,16 +21,15 @@ namespace HostsManager
         string lastIP = "";
         bool updating;
 
-        static readonly Color Orange = Color.FromArgb(217, 119, 6);
-        static readonly Color Muted = Color.FromArgb(110, 110, 110);
-        static readonly Font Mono = new Font("Consolas", 9.75f);
+        static readonly Color Orange = CP.OrangeDeep;
+        static readonly Color Muted = CP.Gray;
+        static readonly Font Mono = CP.Mono;
 
-        // toolbar
-        ToolStrip bar;
-        ToolStripButton btnAdd, btnReload, btnFlush, btnSave, btnTh, btnEn;
-        ToolStripDropDownButton btnAll;
+        // header + toolbar
+        HeaderBand header;
+        RoundButton pillList, pillRaw, btnAdd, btnImport, btnAll, btnReload, btnFlush, btnSave;
+        ContextMenuStrip allMenu;
         ToolStripMenuItem miAllOn, miAllOff;
-        ToolStripLabel lblLang;
 
         // tabs
         TabControl tabs;
@@ -38,27 +38,29 @@ namespace HostsManager
         // list tab
         Panel banner;
         Label bannerLabel;
-        Button bannerImport;
+        RoundButton bannerImport;
         DataGridView grid;
         DataGridViewCheckBoxColumn colOn;
         DataGridViewTextBoxColumn colIp, colHosts, colNote, colIssues;
         DataGridViewButtonColumn colCheck, colOpen, colDel;
         Panel empty;
         Label emptyLabel;
-        Button emptyAdd, emptyImport;
+        RoundButton emptyAdd, emptyImport;
 
         // raw tab
         Label rawHint;
         TextBox raw;
-        Button rawReset, rawApply;
+        RoundButton rawReset, rawApply;
 
         // check panel + status
+        Panel checkWrap;
+        Card checkCard;
+        FlowLayoutPanel checkFlow;
         Label checkLabel;
         TextBox checkInput;
-        Button checkBtn;
+        RoundButton checkBtn;
         Label checkResult;
-        StatusStrip status;
-        ToolStripStatusLabel statusLabel, dirtyLabel;
+        Label statusLabel, dirtyLabel;
 
         public MainForm(string hostsPath)
         {
@@ -75,10 +77,11 @@ namespace HostsManager
             SuspendLayout();
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            Font = new Font("Segoe UI", 9.75f);
-            Text = "Hosts Manager";
-            ClientSize = new Size(1180, 640);
-            MinimumSize = new Size(900, 480);
+            Font = CP.Body;
+            BackColor = CP.Ground;
+            Text = "Hosts Manager — Colorpack";
+            ClientSize = new Size(1240, 780);
+            MinimumSize = new Size(960, 600);
             StartPosition = FormStartPosition.CenterScreen;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             KeyPreview = true;
@@ -88,51 +91,53 @@ namespace HostsManager
                 if (e.Control && e.KeyCode == Keys.N) { e.SuppressKeyPress = true; ShowAdd(); }
             };
 
+            // ---- header band ----
+            header = new HeaderBand();
+            header.Th.Click += (s, e) => SetLang(Lang.Th);
+            header.En.Click += (s, e) => SetLang(Lang.En);
+
             // ---- toolbar ----
-            bar = new ToolStrip
-            {
-                GripStyle = ToolStripGripStyle.Hidden,
-                Padding = new Padding(8, 6, 8, 6),
-                ImageScalingSize = new Size(16, 16),
-                RenderMode = ToolStripRenderMode.System
-            };
-            btnAdd = TextButton(ShowAdd);
+            pillList = new RoundButton(RoundButton.Kinds.PillOn) { Margin = new Padding(0, 4, 2, 0) };
+            pillRaw = new RoundButton(RoundButton.Kinds.Pill) { Margin = new Padding(2, 4, 0, 0) };
+            pillList.Click += (s, e) => tabs.SelectedTab = tabList;
+            pillRaw.Click += (s, e) => tabs.SelectedTab = tabRaw;
+            var leftBar = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false, BackColor = CP.Ground };
+            leftBar.Controls.AddRange(new Control[] { pillList, pillRaw });
+
+            btnAdd = new RoundButton();
+            btnAdd.Click += (s, e) => ShowAdd();
+            btnImport = new RoundButton();
+            btnImport.Click += (s, e) => ShowImport();
             miAllOn = new ToolStripMenuItem("", null, (s, e) => SetAll(true));
             miAllOff = new ToolStripMenuItem("", null, (s, e) => SetAll(false));
-            btnAll = new ToolStripDropDownButton { DisplayStyle = ToolStripItemDisplayStyle.Text };
-            btnAll.DropDownItems.AddRange(new ToolStripItem[] { miAllOn, miAllOff });
-            btnReload = TextButton(() =>
+            allMenu = new ContextMenuStrip { Font = CP.Body };
+            allMenu.Items.AddRange(new ToolStripItem[] { miAllOn, miAllOff });
+            btnAll = new RoundButton();
+            btnAll.Click += (s, e) => allMenu.Show(btnAll, new Point(0, btnAll.Height));
+            btnReload = new RoundButton();
+            btnReload.Click += (s, e) =>
             {
                 if (IsDirty && !Confirm(L.T("ทิ้งการแก้ไขที่ยังไม่บันทึก แล้วโหลดไฟล์ใหม่?", "Discard unsaved changes and reload the file?"))) return;
                 LoadHosts();
-            });
-            btnFlush = TextButton(Flush);
-            btnSave = TextButton(Save);
-            btnSave.Font = new Font(Font, FontStyle.Bold);
-            btnSave.ForeColor = Color.FromArgb(37, 99, 235);
-            lblLang = new ToolStripLabel { Alignment = ToolStripItemAlignment.Right };
-            btnEn = new ToolStripButton("EN") { Alignment = ToolStripItemAlignment.Right };
-            btnTh = new ToolStripButton("ไทย") { Alignment = ToolStripItemAlignment.Right };
-            btnTh.Click += (s, e) => SetLang(Lang.Th);
-            btnEn.Click += (s, e) => SetLang(Lang.En);
-            bar.Items.AddRange(new ToolStripItem[]
-            {
-                btnAdd, btnAll, new ToolStripSeparator(), btnReload, btnFlush, new ToolStripSeparator(), btnSave,
-                btnEn, btnTh, lblLang
-            });
+            };
+            btnFlush = new RoundButton();
+            btnFlush.Click += (s, e) => Flush();
+            btnSave = new RoundButton(RoundButton.Kinds.Primary);
+            btnSave.Click += (s, e) => Save();
+            var rightBar = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false, BackColor = CP.Ground };
+            rightBar.Controls.AddRange(new Control[] { btnAdd, btnImport, btnAll, btnReload, btnFlush, btnSave });
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 66, Padding = new Padding(16, 12, 16, 4), BackColor = CP.Ground };
+            toolbar.Controls.Add(rightBar);
+            toolbar.Controls.Add(leftBar);
 
             // ---- list tab ----
-            bannerLabel = new Label { AutoSize = true, ForeColor = Orange, Margin = new Padding(0, 6, 12, 0) };
-            bannerImport = new Button { AutoSize = true };
+            bannerLabel = new Label { AutoSize = true, ForeColor = CP.OrangeDeep, Margin = new Padding(0, 8, 14, 0) };
+            bannerImport = new RoundButton(RoundButton.Kinds.Secondary, small: true) { Margin = new Padding(0, 2, 0, 0) };
             bannerImport.Click += (s, e) => ShowImport();
-            var bannerFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoSize = true };
+            var bannerFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, BackColor = CP.OrangeTint };
             bannerFlow.Controls.Add(bannerLabel);
             bannerFlow.Controls.Add(bannerImport);
-            banner = new Panel
-            {
-                Dock = DockStyle.Top, Height = 40, Padding = new Padding(10, 4, 10, 4),
-                BackColor = Color.FromArgb(255, 247, 237), Visible = false
-            };
+            banner = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(14, 6, 14, 4), BackColor = CP.OrangeTint, Visible = false };
             banner.Controls.Add(bannerFlow);
 
             grid = new DataGridView
@@ -144,14 +149,12 @@ namespace HostsManager
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.CellSelect,
                 AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
-                BackgroundColor = SystemColors.Window,
-                BorderStyle = BorderStyle.None,
                 EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
-            grid.DefaultCellStyle.Padding = new Padding(2, 4, 2, 4);
-            colOn = new DataGridViewCheckBoxColumn { Width = 56, SortMode = DataGridViewColumnSortMode.NotSortable };
-            colIp = new DataGridViewTextBoxColumn { Width = 140, SortMode = DataGridViewColumnSortMode.NotSortable };
+            CP.StyleGrid(grid);
+            colOn = new DataGridViewCheckBoxColumn { Width = 70, SortMode = DataGridViewColumnSortMode.NotSortable };
+            colIp = new DataGridViewTextBoxColumn { Width = 150, SortMode = DataGridViewColumnSortMode.NotSortable };
             colIp.DefaultCellStyle.Font = Mono;
             colHosts = new DataGridViewTextBoxColumn { AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 45, SortMode = DataGridViewColumnSortMode.NotSortable };
             colHosts.DefaultCellStyle.Font = Mono;
@@ -159,10 +162,10 @@ namespace HostsManager
             colNote = new DataGridViewTextBoxColumn { Width = 150, SortMode = DataGridViewColumnSortMode.NotSortable };
             colIssues = new DataGridViewTextBoxColumn { AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 40, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable };
             colIssues.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-            colIssues.DefaultCellStyle.Font = new Font("Segoe UI", 8.75f);
-            colCheck = new DataGridViewButtonColumn { Width = 72, UseColumnTextForButtonValue = true };
-            colOpen = new DataGridViewButtonColumn { Width = 78, UseColumnTextForButtonValue = true };
-            colDel = new DataGridViewButtonColumn { Width = 60, UseColumnTextForButtonValue = true };
+            colIssues.DefaultCellStyle.Font = CP.Small;
+            colCheck = new DataGridViewButtonColumn { Width = 82, UseColumnTextForButtonValue = true };
+            colOpen = new DataGridViewButtonColumn { Width = 92, UseColumnTextForButtonValue = true };
+            colDel = new DataGridViewButtonColumn { Width = 70, UseColumnTextForButtonValue = true };
             grid.Columns.AddRange(colOn, colIp, colHosts, colNote, colIssues, colCheck, colOpen, colDel);
             grid.CurrentCellDirtyStateChanged += (s, e) =>
             {
@@ -171,42 +174,56 @@ namespace HostsManager
             };
             grid.CellValueChanged += GridCellValueChanged;
             grid.CellContentClick += GridCellContentClick;
+            grid.CellPainting += GridCellPainting;
+            grid.CellMouseClick += (s, e) =>
+            {
+                // คลิกที่สวิตช์ก็เปิด/ปิดได้เลย / toggle on a single click
+                if (e.RowIndex >= 0 && e.ColumnIndex == colOn.Index && grid.Rows[e.RowIndex].Tag is HostEntry en)
+                {
+                    en.Enabled = !en.Enabled;
+                    updating = true;
+                    grid.Rows[e.RowIndex].Cells[colOn.Index].Value = en.Enabled;
+                    updating = false;
+                    UpdateState();
+                }
+            };
             grid.DataError += (s, e) => { e.ThrowException = false; };
+            colOn.ReadOnly = true;
 
-            emptyLabel = new Label { AutoSize = true, Font = new Font(Font.FontFamily, 11f), ForeColor = Muted };
-            emptyAdd = new Button { AutoSize = true, Padding = new Padding(10, 2, 10, 2) };
+            emptyLabel = new Label { AutoSize = true, Font = CP.H3, ForeColor = CP.Ink };
+            emptyAdd = new RoundButton(RoundButton.Kinds.Primary);
             emptyAdd.Click += (s, e) => ShowAdd();
-            emptyImport = new Button { AutoSize = true, Padding = new Padding(10, 2, 10, 2) };
+            emptyImport = new RoundButton();
             emptyImport.Click += (s, e) => ShowImport();
             var emptyFlow = new FlowLayoutPanel
             {
                 FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false,
-                Anchor = AnchorStyles.None
+                Anchor = AnchorStyles.None, BackColor = CP.Paper
             };
             emptyFlow.Controls.AddRange(new Control[] { emptyLabel, emptyAdd, emptyImport });
             foreach (Control c in emptyFlow.Controls) c.Margin = new Padding(0, 6, 0, 6);
-            var emptyTable = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 1 };
+            var emptyTable = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 1, BackColor = CP.Paper };
             emptyTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             emptyTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             emptyTable.Controls.Add(emptyFlow, 0, 0);
-            empty = new Panel { Dock = DockStyle.Fill, Visible = false, BackColor = SystemColors.Window };
+            empty = new Panel { Dock = DockStyle.Fill, Visible = false, BackColor = CP.Paper };
             empty.Controls.Add(emptyTable);
 
-            tabList = new TabPage { Padding = new Padding(0) };
+            tabList = new TabPage { Padding = new Padding(0), BackColor = CP.Paper };
             tabList.Controls.Add(grid);
             tabList.Controls.Add(empty);
             tabList.Controls.Add(banner);
 
             // ---- raw tab ----
-            rawHint = new Label { Dock = DockStyle.Top, Height = 28, ForeColor = Muted, Padding = new Padding(4, 6, 4, 0) };
+            rawHint = new Label { Dock = DockStyle.Top, Height = 32, ForeColor = CP.Gray, Font = CP.Small, Padding = new Padding(2, 6, 2, 0) };
             raw = new TextBox
             {
                 Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Both, WordWrap = false,
-                Font = Mono, AcceptsTab = true
+                Font = Mono, AcceptsTab = true, BackColor = CP.Ground, BorderStyle = BorderStyle.None
             };
-            rawReset = new Button { AutoSize = true };
+            rawReset = new RoundButton();
             rawReset.Click += (s, e) => raw.Text = ToCrlf(doc.Compose());
-            rawApply = new Button { AutoSize = true };
+            rawApply = new RoundButton(RoundButton.Kinds.Primary);
             rawApply.Click += (s, e) =>
             {
                 doc.Parse(raw.Text);
@@ -214,80 +231,139 @@ namespace HostsManager
                 raw.Text = ToCrlf(doc.Compose());
                 SetStatus(() => L.T("นำข้อความไปใช้แล้ว — กดบันทึกเพื่อเขียนลงไฟล์", "Text applied — click Save to write the file"));
             };
-            var rawButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 40, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(4) };
+            var rawButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 54, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 6, 0, 0), BackColor = CP.Paper };
             rawButtons.Controls.Add(rawApply);
             rawButtons.Controls.Add(rawReset);
-            tabRaw = new TabPage { Padding = new Padding(6) };
+            tabRaw = new TabPage { Padding = new Padding(10), BackColor = CP.Paper };
             tabRaw.Controls.Add(raw);
             tabRaw.Controls.Add(rawButtons);
             tabRaw.Controls.Add(rawHint);
 
-            tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(14, 5) };
+            // ซ่อนหัวแท็บ ใช้ปุ่มเม็ดยาด้านบนแทน / hide tab headers; the pills switch tabs
+            tabs = new TabControl
+            {
+                Dock = DockStyle.Fill, Appearance = TabAppearance.FlatButtons,
+                ItemSize = new Size(0, 1), SizeMode = TabSizeMode.Fixed
+            };
             tabs.TabPages.Add(tabList);
             tabs.TabPages.Add(tabRaw);
             tabs.SelectedIndexChanged += (s, e) =>
             {
                 if (tabs.SelectedTab == tabRaw) raw.Text = ToCrlf(doc.Compose());
+                pillList.Kind = tabs.SelectedTab == tabList ? RoundButton.Kinds.PillOn : RoundButton.Kinds.Pill;
+                pillRaw.Kind = tabs.SelectedTab == tabRaw ? RoundButton.Kinds.PillOn : RoundButton.Kinds.Pill;
             };
+            var bodyCard = new Card { Dock = DockStyle.Fill, Padding = new Padding(8) };
+            bodyCard.Controls.Add(tabs);
+            var bodyWrap = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 4, 16, 8), BackColor = CP.Ground };
+            bodyWrap.Controls.Add(bodyCard);
 
             // ---- check panel ----
-            checkLabel = new Label { AutoSize = true, Margin = new Padding(0, 7, 6, 0) };
-            checkInput = new TextBox { Width = 300 };
+            checkLabel = new Label { AutoSize = true, Font = CP.Label, ForeColor = CP.Gray, Margin = new Padding(0, 10, 8, 0) };
+            checkInput = new TextBox { Width = 320, Font = Mono, Margin = new Padding(0, 7, 8, 0) };
             checkInput.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Check(checkInput.Text); } };
-            checkBtn = new Button { AutoSize = true };
+            checkBtn = new RoundButton(RoundButton.Kinds.Secondary, small: true) { Margin = new Padding(0, 4, 0, 0) };
             checkBtn.Click += (s, e) => Check(checkInput.Text);
-            var checkRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+            var checkRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0), BackColor = CP.Paper };
             checkRow.Controls.AddRange(new Control[] { checkLabel, checkInput, checkBtn });
-            checkResult = new Label { AutoSize = true, Font = Mono, Margin = new Padding(2, 4, 2, 0) };
-            var checkPanel = new FlowLayoutPanel
+            checkResult = new Label
             {
-                Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.TopDown,
-                WrapContents = false, Padding = new Padding(10, 6, 10, 8)
+                AutoSize = true, Font = CP.Small, ForeColor = CP.Ink, BackColor = CP.BlueTint,
+                Padding = new Padding(10, 6, 10, 6), Margin = new Padding(0, 8, 0, 0), Visible = false
             };
-            checkPanel.Controls.Add(checkRow);
-            checkPanel.Controls.Add(checkResult);
+            checkFlow = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false,
+                Location = new Point(16, 8), BackColor = CP.Paper
+            };
+            checkFlow.Controls.Add(checkRow);
+            checkFlow.Controls.Add(checkResult);
+            checkCard = new Card { Dock = DockStyle.Fill, Padding = new Padding(0) };
+            checkCard.Controls.Add(checkFlow);
+            checkWrap = new Panel { Dock = DockStyle.Bottom, Height = 70, Padding = new Padding(16, 0, 16, 0), BackColor = CP.Ground };
+            checkWrap.Controls.Add(checkCard);
 
             // ---- status ----
-            statusLabel = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
-            dirtyLabel = new ToolStripStatusLabel { ForeColor = Orange, Visible = false };
-            status = new StatusStrip();
-            status.Items.AddRange(new ToolStripItem[] { statusLabel, dirtyLabel });
+            statusLabel = new Label { Dock = DockStyle.Fill, Font = CP.Small, ForeColor = CP.Gray, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+            dirtyLabel = new Label { Dock = DockStyle.Right, AutoSize = true, Font = CP.Label, ForeColor = CP.OrangeDeep, Visible = false, TextAlign = ContentAlignment.MiddleRight, Padding = new Padding(0, 6, 0, 0) };
+            var statusPanel = new Panel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(20, 2, 20, 2), BackColor = CP.Ground };
+            statusPanel.Controls.Add(statusLabel);
+            statusPanel.Controls.Add(dirtyLabel);
 
-            Controls.Add(tabs);
-            Controls.Add(checkPanel);
-            Controls.Add(status);
-            Controls.Add(bar);
+            var footer = new CreditFooter();
+
+            Controls.Add(bodyWrap);
+            Controls.Add(checkWrap);
+            Controls.Add(statusPanel);
+            Controls.Add(toolbar);
+            Controls.Add(footer);
+            Controls.Add(header);
             ResumeLayout(false);
             PerformLayout();
         }
 
-        static ToolStripButton TextButton(Action a)
+        /// <summary>ความสูงการ์ดตรวจโดเมนตามเนื้อหา / fit the check card to its content</summary>
+        void FitCheckCard()
         {
-            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Text, Margin = new Padding(2, 0, 2, 0) };
-            b.Click += (s, e) => a();
-            return b;
+            checkResult.Visible = checkResult.Text.Length > 0;
+            checkResult.MaximumSize = new Size(Math.Max(300, checkWrap.Width - 80), 0);
+            checkWrap.Height = checkFlow.PreferredSize.Height + 18;
+        }
+
+        /// <summary>วาดสวิตช์เปิด/ปิด และปุ่มมนในตาราง / paint toggle switches and rounded buttons in the grid</summary>
+        void GridCellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            bool isBtn = e.ColumnIndex == colCheck.Index || e.ColumnIndex == colOpen.Index || e.ColumnIndex == colDel.Index;
+            bool isToggle = e.ColumnIndex == colOn.Index;
+            if (!isBtn && !isToggle) return;
+            e.PaintBackground(e.CellBounds, false);
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var b = e.CellBounds;
+            if (isToggle)
+            {
+                bool on = e.Value is bool v && v;
+                var r = new RectangleF(b.X + (b.Width - 40) / 2f, b.Y + (b.Height - 22) / 2f, 40, 22);
+                using (var path = CP.Round(r, 11)) using (var br = new SolidBrush(on ? CP.Green : CP.Line)) g.FillPath(br, path);
+                var knob = new RectangleF(on ? r.Right - 19 : r.X + 3, r.Y + 3, 16, 16);
+                g.FillEllipse(Brushes.White, knob);
+            }
+            else
+            {
+                bool del = e.ColumnIndex == colDel.Index;
+                string text = ((DataGridViewButtonColumn)grid.Columns[e.ColumnIndex]).Text;
+                var size = TextRenderer.MeasureText(text, CP.Small);
+                float w = Math.Min(b.Width - 8, size.Width + 20), h = 30;
+                var r = new RectangleF(b.X + (b.Width - w) / 2f, b.Y + (b.Height - h) / 2f, w, h);
+                using (var path = CP.Round(r, 9))
+                {
+                    g.FillPath(Brushes.White, path);
+                    using (var p = new Pen(del ? Color.FromArgb(150, CP.Red) : CP.Line, 1.5f)) g.DrawPath(p, path);
+                }
+                TextRenderer.DrawText(g, text, CP.Small, Rectangle.Round(r), del ? CP.RedDeep : CP.Ink,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+            }
+            e.Handled = true;
         }
 
         /// <summary>ใส่ข้อความทุกจุดตามภาษา / (re)apply all texts for the current language</summary>
         void ApplyTexts()
         {
-            btnAdd.Text = L.T("＋ เพิ่ม", "＋ Add");
-            btnAdd.ToolTipText = L.T("เพิ่มโดเมน (Ctrl+N)", "Add domains (Ctrl+N)");
-            btnAll.Text = L.T("เปิด/ปิดทั้งหมด", "All on/off");
+            header.Subtitle.Text = L.T("แก้ไฟล์ hosts สำหรับย้ายเว็บไป server ใหม่", "Edit the hosts file for site migrations");
+            header.LangLabel.Text = L.T("ภาษา", "Language");
+            header.SetLang(L.Lang);
+
+            pillList.Text = L.T("รายการโดเมน", "Domains");
+            pillRaw.Text = L.T("แก้ไฟล์ดิบ", "Raw file");
+            btnAdd.Text = L.T("＋  เพิ่ม", "＋  Add");
+            btnImport.Text = L.T("⇩  นำเข้าจากไฟล์เดิม", "⇩  Import existing");
+            btnAll.Text = L.T("เปิด/ปิดทั้งหมด  ▾", "All on/off  ▾");
             miAllOn.Text = L.T("เปิดทั้งหมด", "Turn all on");
             miAllOff.Text = L.T("ปิดทั้งหมด", "Turn all off");
-            btnReload.Text = L.T("↻ โหลดใหม่", "↻ Reload");
-            btnReload.ToolTipText = L.T("อ่านไฟล์ hosts ใหม่", "Re-read the hosts file");
-            btnFlush.Text = L.T("ล้าง DNS", "Flush DNS");
-            btnFlush.ToolTipText = L.T("ล้างแคช DNS ของเครื่อง (ipconfig /flushdns)", "Clear the DNS cache (ipconfig /flushdns)");
-            btnSave.Text = L.T("✓ บันทึก", "✓ Save");
-            btnSave.ToolTipText = L.T("บันทึกลงไฟล์ hosts และล้าง DNS (Ctrl+S)", "Write the hosts file and flush DNS (Ctrl+S)");
-            lblLang.Text = L.T("ภาษา:", "Language:");
-            btnTh.Checked = L.Lang == Lang.Th;
-            btnEn.Checked = L.Lang == Lang.En;
-
-            tabList.Text = L.T("รายการโดเมน", "Domains");
-            tabRaw.Text = L.T("แก้ไฟล์ดิบ", "Raw file");
+            btnReload.Text = L.T("↻  โหลดใหม่", "↻  Reload");
+            btnFlush.Text = L.T("⚡  ล้าง DNS", "⚡  Flush DNS");
+            btnSave.Text = L.T("✓  บันทึก", "✓  Save");
 
             colOn.HeaderText = L.T("ใช้งาน", "On");
             colIp.HeaderText = "IP";
@@ -302,21 +378,21 @@ namespace HostsManager
             colDel.Text = L.T("ลบ", "Delete");
 
             emptyLabel.Text = L.T("ยังไม่มีรายการที่ชี้ไป server ใหม่", "No domains pointed to a new server yet");
-            emptyAdd.Text = L.T("＋ เพิ่มรายการแรก", "＋ Add first entry");
+            emptyAdd.Text = L.T("＋  เพิ่มรายการแรก", "＋  Add first entry");
 
             rawHint.Text = L.T("แก้ทั้งไฟล์ได้โดยตรง กด “ใช้ข้อความนี้” แล้วกด “บันทึก” ด้านบน",
                                "Edit the whole file. Click “Apply text”, then “Save” above.");
             rawReset.Text = L.T("รีเซ็ตเป็นค่าปัจจุบัน", "Reset to current");
             rawApply.Text = L.T("ใช้ข้อความนี้", "Apply text");
 
-            checkLabel.Text = L.T("ตรวจโดเมน:", "Check domain:");
+            checkLabel.Text = L.T("ตรวจโดเมน", "Check domain");
             checkBtn.Text = L.T("ตรวจ", "Check");
             dirtyLabel.Text = L.T("● ยังไม่ได้บันทึก", "● Unsaved changes");
-            checkResult.Font = L.Lang == Lang.Th ? Font : Mono;
             if (statusText != null) statusLabel.Text = statusText();
 
             grid.Invalidate();
             UpdateState();
+            FitCheckCard();
         }
 
         void SetLang(Lang lang)
@@ -324,8 +400,8 @@ namespace HostsManager
             if (L.Lang == lang) return;
             L.Lang = lang;
             Settings.SaveLang(lang);
-            ApplyTexts();
             checkResult.Text = "";
+            ApplyTexts();
         }
 
         // ================= data <-> grid =================
@@ -419,7 +495,7 @@ namespace HostsManager
             {
                 var h = e.HostList.FirstOrDefault();
                 // เปิดผ่าน explorer เพื่อให้เบราว์เซอร์ไม่รันด้วยสิทธิ์ admin
-                if (h != null) TryStart("explorer.exe", "\"http://" + h + "\"");
+                if (h != null) CP.OpenUrl("http://" + h);
             }
             else if (a.ColumnIndex == colDel.Index)
             {
@@ -568,6 +644,7 @@ namespace HostsManager
             checkInput.Text = d;
             checkBtn.Enabled = false;
             checkResult.Text = L.T("กำลังตรวจ…", "Checking…");
+            FitCheckCard();
             Task.Run(() =>
             {
                 List<string> local, pub;
@@ -594,6 +671,7 @@ namespace HostsManager
                               "\n→ This PC points somewhere different from real DNS (using hosts)"));
                 checkResult.Text = sb.ToString();
                 checkBtn.Enabled = true;
+                FitCheckCard();
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
@@ -684,6 +762,7 @@ namespace HostsManager
                 var tag = lang == Lang.Th ? "th" : "en";
                 checkResult.Text = L.T("โดเมน: client-shop.co.th\nเครื่องนี้เห็น (hosts/แคช): 203.0.113.10\nDNS สาธารณะ (1.1.1.1): 198.51.100.7\n→ เครื่องนี้ชี้ไปคนละที่กับ DNS จริง (กำลังใช้ค่าจาก hosts)",
                                        "Domain: client-shop.co.th\nThis PC sees (hosts/cache): 203.0.113.10\nPublic DNS (1.1.1.1):        198.51.100.7\n→ This PC points somewhere different from real DNS (using hosts)");
+                FitCheckCard();
                 tabs.SelectedTab = tabList;
                 Capture(this, Path.Combine(dir, $"1-main-{tag}.png"));
                 tabs.SelectedTab = tabRaw;

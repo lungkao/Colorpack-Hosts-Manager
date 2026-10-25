@@ -524,6 +524,114 @@ final class HostsStore: ObservableObject {
     }
 }
 
+// MARK: - Colorpack theme (ธีมบริษัท)
+
+let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.4"
+
+enum CP {
+    static func hex(_ v: UInt32) -> Color {
+        Color(red: Double((v >> 16) & 255) / 255, green: Double((v >> 8) & 255) / 255, blue: Double(v & 255) / 255)
+    }
+    static let blue = hex(0x3B8FE0), blueHover = hex(0x2F7AC4), blueDeep = hex(0x1F5FA8), blueTint = hex(0xE3EFFB)
+    static let green = hex(0x6CC04A), greenDeep = hex(0x2F7A1A), greenTint = hex(0xE8F5E1)
+    static let orange = hex(0xF7941C), orangeDeep = hex(0x9A5300), orangeTint = hex(0xFEF0DC)
+    static let red = hex(0xEF2B2C), redDeep = hex(0xB81B1C), redTint = hex(0xFDE8E8)
+    static let gray = hex(0x666666), ink = hex(0x111111), paper = hex(0xFFFFFF)
+    static let ground = hex(0xF4F6F8), line = hex(0xE1E6EB)
+
+    /// Kanit (มากับแอปใน Resources/Fonts) — ถ้าไม่มีจะใช้ฟอนต์ระบบแทน
+    static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        let name: String
+        switch weight {
+        case .bold: name = "Kanit-Bold"
+        case .semibold: name = "Kanit-SemiBold"
+        case .medium: name = "Kanit-Medium"
+        case .light: name = "Kanit-Light"
+        default: name = "Kanit-Regular"
+        }
+        return NSFont(name: name, size: size) != nil ? .custom(name, size: size) : .system(size: size, weight: weight)
+    }
+    static let body = font(15)
+    static let small = font(13)
+    static let label = font(13, .medium)
+    static let mono = Font.system(size: 13, design: .monospaced)
+
+    static func logo(dark: Bool) -> NSImage? {
+        guard let url = Bundle.main.url(forResource: dark ? "colorpack-logo-on-dark" : "colorpack-logo-on-light",
+                                        withExtension: "png") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+}
+
+/// ปุ่มตามธีม: primary (น้ำเงิน), secondary (ขอบเทา), danger (ขอบแดง)
+struct CPButton: ButtonStyle {
+    enum Kind { case primary, secondary, danger, coffee }
+    var kind: Kind = .secondary
+    var small = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        let (bg, fg, border): (Color, Color, Color) = {
+            switch kind {
+            case .primary: return (pressed ? CP.blueHover : CP.blue, .white, .clear)
+            case .secondary: return (pressed ? CP.ground : CP.paper, CP.ink, CP.line)
+            case .danger: return (pressed ? CP.redTint : CP.paper, CP.redDeep, CP.red.opacity(0.6))
+            case .coffee: return (CP.orange.opacity(pressed ? 0.85 : 1), CP.ink, .clear)
+            }
+        }()
+        return configuration.label
+            .font(small ? CP.font(13, .medium) : CP.font(15, .medium))
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(fg)
+            .padding(.horizontal, small ? 10 : 16)
+            .frame(minHeight: small ? 28 : 36)
+            .background(RoundedRectangle(cornerRadius: kind == .coffee ? 999 : (small ? 9 : 12)).fill(bg))
+            .overlay(RoundedRectangle(cornerRadius: kind == .coffee ? 999 : (small ? 9 : 12)).stroke(border, lineWidth: 1.5))
+            .opacity(isEnabled ? 1 : 0.45)
+            .contentShape(Rectangle())
+    }
+}
+
+/// การ์ดพื้นขาว มุมมน เงาอ่อน
+struct CPCard: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(RoundedRectangle(cornerRadius: 16).fill(CP.paper))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
+    }
+}
+extension View { func cpCard() -> some View { modifier(CPCard()) } }
+
+/// ปุ่มเลือกแบบเม็ดยา (ใช้กับภาษาและแท็บ)
+struct CPPills<T: Hashable>: View {
+    @Binding var selection: T
+    var items: [(T, String)]
+    var dark = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(items.indices, id: \.self) { i in
+                let (value, title) = items[i]
+                let on = value == selection
+                Button { selection = value } label: {
+                    Text(title)
+                        .font(CP.font(14, on ? .medium : .regular))
+                        .padding(.horizontal, 14).padding(.vertical, 5)
+                        .foregroundStyle(on ? (dark ? CP.ink : .white) : (dark ? .white.opacity(0.85) : CP.ink))
+                        .background(Capsule().fill(on ? (dark ? Color.white : CP.blue) : .clear))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(dark ? Color.white.opacity(0.12) : CP.paper))
+        .overlay(Capsule().stroke(dark ? .clear : CP.line, lineWidth: 1))
+    }
+}
+
 // MARK: - Views
 
 struct EntryRow: View {
@@ -535,27 +643,29 @@ struct EntryRow: View {
     private var hasSevere: Bool { issues.contains { $0.severe } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
                 Toggle("", isOn: $entry.enabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .frame(width: 40, alignment: .leading)
+                    .tint(CP.green)
+                    .controlSize(.small)
+                    .frame(width: 52, alignment: .leading)
                     .help(entry.enabled ? tr("กำลังใช้งาน", "Active") : tr("ปิดอยู่ (ไม่มีผล)", "Off (no effect)"))
                 TextField("IP", text: $entry.ip)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(isValidIP(entry.ip) ? Color.primary : Color.red)
+                    .font(CP.mono)
+                    .foregroundStyle(isValidIP(entry.ip) ? CP.ink : CP.redDeep)
                     .frame(width: 150)
                 TextField(tr("โดเมน", "Domains"), text: $entry.hosts)
-                    .font(.system(.body, design: .monospaced))
-                    .overlay(RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color.orange, lineWidth: hasSevere ? 1.5 : 0))
+                    .font(CP.mono)
+                    .overlay(RoundedRectangle(cornerRadius: 6)
+                        .stroke(CP.orange, lineWidth: hasSevere ? 2 : 0))
                 TextField(tr("หมายเหตุ", "Note"), text: $entry.note)
                     .frame(width: 150)
                 Button(action: onCheck) {
                     Label(tr("ตรวจ", "Check"), systemImage: "magnifyingglass")
                 }
+                .buttonStyle(CPButton(kind: .secondary, small: true))
                 .help(tr("ตรวจว่าโดเมนนี้ชี้ไปที่ไหน", "See where this domain resolves"))
                 Button {
                     if let h = entry.hostList.first, let url = URL(string: "http://\(h)") {
@@ -564,29 +674,29 @@ struct EntryRow: View {
                 } label: {
                     Label(tr("เปิดเว็บ", "Open"), systemImage: "safari")
                 }
+                .buttonStyle(CPButton(kind: .secondary, small: true))
                 .help(tr("เปิดเว็บในเบราว์เซอร์", "Open in browser"))
-                Button(role: .destructive, action: onDelete) {
+                Button(action: onDelete) {
                     Label(tr("ลบ", "Delete"), systemImage: "trash")
                 }
+                .buttonStyle(CPButton(kind: .danger, small: true))
                 .help(tr("ลบแถวนี้", "Delete this row"))
             }
             .textFieldStyle(.roundedBorder)
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .labelStyle(.titleAndIcon)
 
             if !issues.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(issues.indices, id: \.self) { i in
                         Label(issues[i].text,
                               systemImage: issues[i].severe ? "exclamationmark.triangle.fill" : "info.circle")
-                            .font(.caption)
-                            .foregroundStyle(issues[i].severe ? Color.orange : Color.secondary)
+                            .font(CP.small)
+                            .foregroundStyle(issues[i].severe ? CP.orangeDeep : CP.gray)
                     }
                 }
-                .padding(.leading, 48)
+                .padding(.leading, 62)
             }
         }
+        .padding(.vertical, 4)
         .opacity(entry.enabled ? 1 : 0.5)
     }
 }
@@ -596,63 +706,77 @@ struct EntriesView: View {
 
     var body: some View {
         if store.entries.isEmpty {
-            VStack(spacing: 12) {
+            VStack(spacing: 14) {
                 Spacer()
-                Image(systemName: "server.rack").font(.system(size: 40)).foregroundStyle(.secondary)
+                Image(systemName: "server.rack").font(.system(size: 44)).foregroundStyle(CP.blue)
                 Text(tr("ยังไม่มีรายการที่ชี้ไป server ใหม่", "No domains pointed to a new server yet"))
-                Button(tr("เพิ่มรายการแรก", "Add first entry")) { store.showAdd = true }
+                    .font(CP.font(19, .medium)).foregroundStyle(CP.ink)
+                Button { store.showAdd = true } label: {
+                    Label(tr("เพิ่มรายการแรก", "Add first entry"), systemImage: "plus")
+                }
+                .buttonStyle(CPButton(kind: .primary))
                 if store.importableCount > 0 {
                     Button(tr("เลือกนำเข้าจากไฟล์ hosts เดิม (\(store.importableCount) โดเมน)",
                               "Import from existing hosts file (\(store.importableCount) domains)…")) {
                         store.openImport()
                     }
+                    .buttonStyle(CPButton(kind: .secondary))
                 }
                 Spacer()
             }
             .frame(maxWidth: .infinity)
+            .cpCard()
         } else {
             let issues = store.issues
             let severe = issues.values.flatMap { $0 }.filter(\.severe).count
             let importableCount = store.importableCount
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 if severe > 0 || importableCount > 0 {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 14) {
                         if severe > 0 {
                             Label(tr("พบโดเมนซ้ำที่ชี้คนละ IP \(severe) จุด",
                                      "\(severe) duplicate domain(s) point to different IPs"),
                                   systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(CP.orangeDeep)
                         }
                         if importableCount > 0 {
                             Text(tr("มี \(importableCount) โดเมนในไฟล์เดิมที่แอปยังไม่ได้จัดการ",
                                     "\(importableCount) domain(s) in the file aren't managed by this app"))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(CP.orangeDeep)
                             Button(tr("เลือกนำเข้ารายการเดิม…", "Choose entries to import…")) { store.openImport() }
+                                .buttonStyle(CPButton(kind: .secondary, small: true))
                         }
                         Spacer()
                     }
-                    .font(.callout)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.08))
+                    .font(CP.body)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(CP.orangeTint))
                 }
-                List {
-                    HStack(spacing: 8) {
-                        Text(tr("ใช้งาน", "On")).frame(width: 40, alignment: .leading)
+                VStack(spacing: 0) {
+                    HStack(spacing: 10) {
+                        Text(tr("ใช้งาน", "On")).frame(width: 52, alignment: .leading)
                         Text("IP").frame(width: 150, alignment: .leading)
                         Text(tr("โดเมน", "Domains")).frame(maxWidth: .infinity, alignment: .leading)
                         Text(tr("หมายเหตุ", "Note")).frame(width: 150, alignment: .leading)
-                        Spacer().frame(width: 230)
+                        Spacer().frame(width: 250)
                     }
-                    .font(.caption).foregroundStyle(.secondary)
-
-                    ForEach($store.entries) { $e in
-                        EntryRow(entry: $e,
-                                 issues: issues[e.id] ?? [],
-                                 onCheck: { store.check(e.hostList.first ?? "") },
-                                 onDelete: { store.delete(e.id) })
+                    .font(CP.label).foregroundStyle(CP.gray)
+                    .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 6)
+                    Divider().overlay(CP.line)
+                    List {
+                        ForEach($store.entries) { $e in
+                            EntryRow(entry: $e,
+                                     issues: issues[e.id] ?? [],
+                                     onCheck: { store.check(e.hostList.first ?? "") },
+                                     onDelete: { store.delete(e.id) })
+                                .listRowSeparatorTint(CP.line)
+                        }
                     }
+                    .scrollContentBackground(.hidden)
+                    .listStyle(.plain)
                 }
+                .cpCard()
             }
         }
     }
@@ -662,19 +786,22 @@ struct RawView: View {
     @ObservedObject var store: HostsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(tr("แก้ทั้งไฟล์ /etc/hosts ได้โดยตรง กด “ใช้ข้อความนี้” แล้วกด “บันทึก” ด้านบน",
                     "Edit the whole /etc/hosts file. Click “Apply text”, then “Save” above."))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CP.small).foregroundStyle(CP.gray)
             TextEditor(text: $store.rawDraft)
-                .font(.system(.body, design: .monospaced))
-                .border(Color.secondary.opacity(0.3))
+                .font(CP.mono)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 10).fill(CP.ground))
             HStack {
                 Button {
                     store.rawDraft = store.composed
                 } label: {
                     Label(tr("รีเซ็ตเป็นค่าปัจจุบัน", "Reset to current"), systemImage: "arrow.uturn.backward")
                 }
+                .buttonStyle(CPButton(kind: .secondary))
                 Spacer()
                 Button {
                     store.parse(store.rawDraft)
@@ -684,11 +811,12 @@ struct RawView: View {
                 } label: {
                     Label(tr("ใช้ข้อความนี้", "Apply text"), systemImage: "checkmark")
                 }
+                .buttonStyle(CPButton(kind: .primary))
                 .keyboardShortcut(.return, modifiers: .command)
             }
-            .labelStyle(.titleAndIcon)
         }
-        .padding()
+        .padding(20)
+        .cpCard()
         .onAppear { store.rawDraft = store.composed }
     }
 }
@@ -697,29 +825,35 @@ struct CheckPanel: View {
     @ObservedObject var store: HostsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(tr("ตรวจโดเมน:", "Check domain:"))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text(tr("ตรวจโดเมน", "Check domain")).font(CP.label).foregroundStyle(CP.gray)
                 TextField("example.com", text: $store.checkDomain)
                     .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 280)
+                    .font(CP.mono)
+                    .frame(maxWidth: 300)
                     .onSubmit { store.check() }
                 Button {
                     store.check()
                 } label: {
                     Label(tr("ตรวจ", "Check"), systemImage: "magnifyingglass")
                 }
-                .labelStyle(.titleAndIcon)
+                .buttonStyle(CPButton(kind: .secondary, small: true))
                 if store.checking { ProgressView().controlSize(.small) }
                 Spacer()
             }
             if !store.checkResult.isEmpty {
                 Text(store.checkResult)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(CP.small)
+                    .foregroundStyle(CP.ink)
                     .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(CP.blueTint))
             }
         }
-        .padding(10)
+        .padding(16)
+        .cpCard()
     }
 }
 
@@ -741,34 +875,55 @@ struct AddEntrySheet: View {
     private var canAdd: Bool { isValidIP(form.ip) && !domainList.isEmpty }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(tr("ชี้โดเมนไป server ใหม่", "Point domains to a new server")).font(.headline)
-            Form {
-                TextField(tr("IP server ใหม่", "New server IP"), text: $form.ip)
-                    .foregroundStyle(form.ip.isEmpty || isValidIP(form.ip) ? Color.primary : Color.red)
-                TextField(tr("โดเมน", "Domains"), text: $form.domains,
-                          prompt: Text(tr("ใส่ได้หลายโดเมน คั่นด้วยเว้นวรรคหรือ ,",
-                                          "Several allowed, separated by space or comma")))
-                Toggle(tr("เพิ่ม www. ให้อัตโนมัติ", "Add www. automatically"), isOn: $form.addWWW)
-                TextField(tr("หมายเหตุ", "Note"), text: $form.note,
-                          prompt: Text(tr("เช่น ชื่อลูกค้า", "e.g. client name")))
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Text("1").font(CP.font(17, .semibold)).foregroundStyle(.white)
+                    .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10).fill(CP.blue))
+                Text(tr("ชี้โดเมนไป server ใหม่", "Point domains to a new server")).font(CP.font(20, .semibold))
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tr("IP server ใหม่", "New server IP")).font(CP.label).foregroundStyle(CP.gray)
+                TextField("203.0.113.10", text: $form.ip)
+                    .font(CP.mono)
+                    .foregroundStyle(form.ip.isEmpty || isValidIP(form.ip) ? CP.ink : CP.redDeep)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tr("โดเมน", "Domains")).font(CP.label).foregroundStyle(CP.gray)
+                TextField("client-site.co.th", text: $form.domains)
+                    .font(CP.mono)
+                Text(tr("ใส่ได้หลายโดเมน คั่นด้วยเว้นวรรคหรือ ,", "Several allowed, separated by space or comma"))
+                    .font(CP.small).foregroundStyle(CP.gray)
+            }
+            Toggle(tr("เพิ่ม www. ให้อัตโนมัติ", "Add www. automatically"), isOn: $form.addWWW)
+                .toggleStyle(.checkbox)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tr("หมายเหตุ", "Note")).font(CP.label).foregroundStyle(CP.gray)
+                TextField(tr("เช่น ชื่อลูกค้า", "e.g. client name"), text: $form.note)
             }
             Text(tr("ถ้าโดเมนมีอยู่แล้ว จะอัปเดต IP ให้แทนการเพิ่มซ้ำ",
                     "If a domain already exists, its IP is updated instead of adding a duplicate"))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CP.small).foregroundStyle(CP.blueDeep)
+                .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 10).fill(CP.blueTint))
             HStack {
                 Spacer()
-                Button(tr("ยกเลิก", "Cancel")) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(tr("ยกเลิก", "Cancel")) { dismiss() }
+                    .buttonStyle(CPButton(kind: .secondary))
+                    .keyboardShortcut(.cancelAction)
                 Button(tr("เพิ่ม", "Add")) {
                     store.add(ip: form.ip, domains: domainList, addWWW: form.addWWW, note: form.note)
                     dismiss()
                 }
+                .buttonStyle(CPButton(kind: .primary))
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canAdd)
             }
         }
-        .padding(20)
-        .frame(width: 500)
+        .textFieldStyle(.roundedBorder)
+        .font(CP.body)
+        .padding(24)
+        .frame(width: 540)
+        .background(CP.paper)
         .onAppear {
             form.ip = store.lastIP
             form.domains = ""
@@ -784,15 +939,19 @@ struct ImportSheet: View {
     private var selectedCount: Int { store.importCandidates.filter(\.selected).count }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(tr("เลือกบรรทัดจากไฟล์ hosts เดิมที่จะนำเข้ามาจัดการ",
-                    "Choose lines from the existing hosts file to manage here"))
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text("2").font(CP.font(17, .semibold)).foregroundStyle(CP.ink)
+                    .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10).fill(CP.green))
+                Text(tr("เลือกบรรทัดจากไฟล์ hosts เดิมที่จะนำเข้ามาจัดการ",
+                        "Choose lines from the existing hosts file to manage here"))
+                    .font(CP.font(20, .semibold))
+            }
             Text(tr("บรรทัดที่ไม่ได้เลือกจะอยู่ในไฟล์เหมือนเดิม ไม่ถูกลบ · บรรทัดของระบบ (localhost) ไม่แสดงในนี้",
                     "Unselected lines stay in the file untouched · system lines (localhost) are not listed"))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(CP.small).foregroundStyle(CP.gray)
 
-            HStack {
+            HStack(spacing: 8) {
                 TextField(tr("ค้นหา IP / โดเมน / หมายเหตุ", "Search IP / domain / note"), text: $store.importFilter)
                     .textFieldStyle(.roundedBorder)
                 Button {
@@ -800,20 +959,21 @@ struct ImportSheet: View {
                 } label: {
                     Label(tr("เลือกทั้งหมด", "Select all"), systemImage: "checkmark.square")
                 }
+                .buttonStyle(CPButton(kind: .secondary, small: true))
                 Button {
                     store.selectVisibleCandidates(false)
                 } label: {
                     Label(tr("ไม่เลือกเลย", "Select none"), systemImage: "square")
                 }
+                .buttonStyle(CPButton(kind: .secondary, small: true))
             }
-            .labelStyle(.titleAndIcon)
 
             if store.hiddenNonDomainCount > 0 {
                 Toggle(tr("แสดงทั้งหมด รวม \(store.hiddenNonDomainCount) บรรทัดที่ไม่ใช่โดเมนจริง (เช่น .local, .internal, ชื่อเครื่อง)",
                           "Show all, including \(store.hiddenNonDomainCount) non-public names (.local, .internal, hostnames)"),
                        isOn: $store.importShowAll)
                     .toggleStyle(.checkbox)
-                    .font(.callout)
+                    .font(CP.small)
             }
 
             List {
@@ -824,116 +984,208 @@ struct ImportSheet: View {
                                 .toggleStyle(.checkbox)
                                 .labelsHidden()
                             Text(c.entry.ip)
-                                .font(.system(.body, design: .monospaced))
+                                .font(CP.mono)
                                 .frame(width: 150, alignment: .leading)
                             Text(c.entry.hosts)
-                                .font(.system(.body, design: .monospaced))
+                                .font(CP.mono)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             if !c.realDomain {
                                 Text(tr("ไม่ใช่โดเมนจริง", "not public"))
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .font(CP.small).foregroundStyle(CP.gray)
                             }
                             if c.alreadyManaged {
-                                Label(tr("มีในรายการแล้ว", "Already listed"), systemImage: "exclamationmark.triangle.fill")
-                                    .font(.caption).foregroundStyle(.orange)
+                                Text(tr("มีในรายการแล้ว", "Already listed"))
+                                    .font(CP.font(12, .medium)).foregroundStyle(CP.orangeDeep)
+                                    .padding(.horizontal, 8).padding(.vertical, 2)
+                                    .background(Capsule().fill(CP.orangeTint))
                             }
                             if !c.entry.note.isEmpty {
-                                Text(c.entry.note).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text(c.entry.note).font(CP.small).foregroundStyle(CP.gray).lineLimit(1)
                                     .frame(maxWidth: 160, alignment: .leading)
                             }
                             Text(c.fromPrefix ? tr("ต้นไฟล์", "top") : tr("ท้ายไฟล์", "bottom"))
-                                .font(.caption2).foregroundStyle(.secondary)
-                                .frame(width: 50, alignment: .trailing)
+                                .font(CP.small).foregroundStyle(CP.gray)
+                                .frame(width: 60, alignment: .trailing)
                         }
                         .contentShape(Rectangle())
                         .onTapGesture { c.selected.toggle() }
                     }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(RoundedRectangle(cornerRadius: 10).stroke(CP.line))
             .frame(minHeight: 320)
+            .overlay {
+                if !store.importCandidates.contains(where: { store.candidateMatches($0) }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(CP.green)
+                        Text(store.importFilter.isEmpty
+                             ? tr("ไม่พบโดเมนจริงในไฟล์ hosts เดิมที่ยังไม่ได้นำเข้า",
+                                  "No real domains left in the existing hosts file")
+                             : tr("ไม่พบรายการที่ตรงกับคำค้น", "Nothing matches your search"))
+                            .font(CP.font(17, .medium)).foregroundStyle(CP.ink)
+                        if store.hiddenNonDomainCount > 0 && !store.importShowAll {
+                            Text(tr("ซ่อนชื่อภายใน \(store.hiddenNonDomainCount) รายการ (เช่น ชื่อเครื่อง, .local) — ติ๊ก “แสดงทั้งหมด” ด้านบนเพื่อดู",
+                                    "\(store.hiddenNonDomainCount) internal names hidden (hostnames, .local) — tick “Show all” above to see them"))
+                                .font(CP.small).foregroundStyle(CP.gray).multilineTextAlignment(.center)
+                        }
+                    }
+                    .padding(24)
+                }
+            }
 
             HStack {
                 Text(tr("เลือกแล้ว \(selectedCount) จาก \(store.importCandidates.count) บรรทัด",
                         "\(selectedCount) of \(store.importCandidates.count) selected"))
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(CP.small).foregroundStyle(CP.gray)
                 Spacer()
                 Button(tr("ยกเลิก", "Cancel")) { store.showImport = false }
+                    .buttonStyle(CPButton(kind: .secondary))
                     .keyboardShortcut(.cancelAction)
                 Button(tr("นำเข้า \(selectedCount) รายการ", "Import \(selectedCount)")) { store.importSelected() }
+                    .buttonStyle(CPButton(kind: .primary))
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
                     .disabled(selectedCount == 0)
             }
         }
-        .padding(20)
-        .frame(width: 820, height: 560)
+        .font(CP.body)
+        .padding(24)
+        .frame(width: 860, height: 600)
+        .background(CP.paper)
     }
 }
 
-/// แถบคำสั่งด้านบน — ทุกปุ่มมีทั้งไอคอนและชื่อ
+/// แถบหัวสีเข้ม: โลโก้ ชื่อแอป เวอร์ชัน และภาษา
+struct HeaderBand: View {
+    @ObservedObject var store: HostsStore
+
+    var body: some View {
+        HStack(spacing: 18) {
+            if let logo = CP.logo(dark: true) {
+                Image(nsImage: logo).resizable().interpolation(.high).scaledToFit().frame(height: 38)
+            }
+            Rectangle().fill(Color.white.opacity(0.18)).frame(width: 1, height: 34)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Hosts Manager").font(CP.font(22, .semibold)).foregroundStyle(.white)
+                Text(tr("แก้ไฟล์ hosts สำหรับย้ายเว็บไป server ใหม่", "Edit the hosts file for site migrations"))
+                    .font(CP.small).foregroundStyle(.white.opacity(0.65))
+            }
+            Spacer()
+            Text("v\(appVersion)")
+                .font(CP.font(13, .medium)).foregroundStyle(.white)
+                .padding(.horizontal, 12).padding(.vertical, 5)
+                .background(Capsule().fill(Color.white.opacity(0.12)))
+            CPPills(selection: $store.lang, items: [(Lang.th, "ไทย"), (Lang.en, "EN")], dark: true)
+                .help("ภาษา / Language")
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .background(CP.ink)
+    }
+}
+
+/// แถบคำสั่ง — ทุกปุ่มมีทั้งไอคอนและชื่อ
 struct ActionBar: View {
     @ObservedObject var store: HostsStore
 
     var body: some View {
         HStack(spacing: 8) {
-            Picker("", selection: $store.tab) {
-                Text(tr("รายการโดเมน", "Domains")).tag(0)
-                Text(tr("แก้ไฟล์ดิบ", "Raw file")).tag(1)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+            CPPills(selection: $store.tab, items: [(0, tr("รายการโดเมน", "Domains")), (1, tr("แก้ไฟล์ดิบ", "Raw file"))])
 
             Spacer(minLength: 12)
 
             Button { store.showAdd = true } label: {
                 Label(tr("เพิ่ม", "Add"), systemImage: "plus")
             }
+            .buttonStyle(CPButton(kind: .secondary))
             .keyboardShortcut("n", modifiers: .command)
             .help(tr("เพิ่มโดเมน (⌘N)", "Add domains (⌘N)"))
+
+            Button { store.openImport() } label: {
+                Label(tr("นำเข้าจากไฟล์เดิม", "Import existing"), systemImage: "tray.and.arrow.down")
+            }
+            .buttonStyle(CPButton(kind: .secondary))
+            .help(tr("เลือกโดเมนจริงจากไฟล์ /etc/hosts เดิมมาจัดการในแอป",
+                     "Pick real domains from the existing /etc/hosts file to manage here"))
 
             Menu {
                 Button(tr("เปิดทั้งหมด", "Turn all on")) { store.setAll(true) }
                 Button(tr("ปิดทั้งหมด", "Turn all off")) { store.setAll(false) }
             } label: {
                 Label(tr("เปิด/ปิดทั้งหมด", "All on/off"), systemImage: "switch.2")
+                    .font(CP.font(15, .medium))
             }
+            .menuStyle(.borderlessButton)
             .fixedSize()
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            .background(RoundedRectangle(cornerRadius: 12).fill(CP.paper))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(CP.line, lineWidth: 1.5))
 
             Button { store.load() } label: {
                 Label(tr("โหลดใหม่", "Reload"), systemImage: "arrow.clockwise")
             }
+            .buttonStyle(CPButton(kind: .secondary))
             .help(tr("อ่าน /etc/hosts ใหม่ (ทิ้งการแก้ที่ยังไม่บันทึก)", "Re-read /etc/hosts (discards unsaved edits)"))
 
             Button { store.flush() } label: {
                 Label(tr("ล้าง DNS", "Flush DNS"), systemImage: "bolt.horizontal.circle")
             }
+            .buttonStyle(CPButton(kind: .secondary))
             .help(tr("ล้างแคช DNS ของเครื่อง", "Clear this Mac's DNS cache"))
 
             Button { store.save() } label: {
                 Label(tr("บันทึก", "Save"), systemImage: "square.and.arrow.down")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(CPButton(kind: .primary))
             .keyboardShortcut("s", modifiers: .command)
             .disabled(!store.isDirty)
             .help(tr("บันทึกลง /etc/hosts และ Flush DNS (⌘S)", "Write /etc/hosts and flush DNS (⌘S)"))
-
-            Divider().frame(height: 20)
-
-            Picker("", selection: $store.lang) {
-                Text("ไทย").tag(Lang.th)
-                Text("EN").tag(Lang.en)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .help("ภาษา / Language")
         }
-        .labelStyle(.titleAndIcon)
-        .buttonStyle(.bordered)
-        .padding(10)
+    }
+}
+
+/// เครดิตบริษัท / Colorpack credit footer
+struct CreditFooter: View {
+    private var year: Int { Calendar(identifier: .gregorian).component(.year, from: Date()) }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            if let logo = CP.logo(dark: false) {
+                Image(nsImage: logo).resizable().interpolation(.high).scaledToFit().frame(height: 34)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("บริษัท คัลเลอร์แพค ครีเอชั่น จำกัด").font(CP.font(15, .semibold)).foregroundStyle(CP.ink)
+                Text("COLORPACK CREATION CO., LTD.").font(CP.font(11)).tracking(1).foregroundStyle(CP.gray)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("© \(String(year)) บริษัท คัลเลอร์แพค ครีเอชั่น จำกัด สงวนลิขสิทธิ์")
+                HStack(spacing: 4) {
+                    Link("colorpack.co.th", destination: URL(string: "https://colorpack.co.th/")!)
+                    Text("· Hosts Manager v\(appVersion) ·")
+                    Link("GitHub", destination: URL(string: "https://github.com/lungkao/Colorpack-Hosts-Manager")!)
+                }
+            }
+            .font(CP.small)
+            .foregroundStyle(CP.gray)
+            .tint(CP.blueDeep)
+            Link(destination: URL(string: "https://buymeacoffee.com/cheuachatchai")!) {
+                Label("Buy me a coffee", systemImage: "cup.and.saucer")
+                    .font(CP.font(13, .medium))
+                    .foregroundStyle(CP.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 6)
+                    .background(Capsule().fill(CP.orange))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(CP.paper)
+        .overlay(Rectangle().fill(CP.line).frame(height: 1), alignment: .top)
     }
 }
 
@@ -943,34 +1195,43 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ActionBar(store: store)
-            Divider()
+            HeaderBand(store: store)
 
-            if store.tab == 0 {
-                EntriesView(store: store)
-            } else {
-                RawView(store: store)
-            }
+            VStack(spacing: 14) {
+                ActionBar(store: store)
 
-            Divider()
-            CheckPanel(store: store)
-            Divider()
+                if store.tab == 0 {
+                    EntriesView(store: store)
+                } else {
+                    RawView(store: store)
+                }
 
-            HStack {
-                Text(store.status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                Spacer()
-                if store.isDirty {
-                    Label(tr("ยังไม่ได้บันทึก", "Unsaved changes"), systemImage: "circle.fill")
-                        .font(.caption).foregroundStyle(.orange)
+                CheckPanel(store: store)
+
+                HStack {
+                    Text(store.status).font(CP.small).foregroundStyle(CP.gray).lineLimit(2)
+                    Spacer()
+                    if store.isDirty {
+                        Label(tr("ยังไม่ได้บันทึก", "Unsaved changes"), systemImage: "circle.fill")
+                            .font(CP.font(13, .medium)).foregroundStyle(CP.orangeDeep)
+                    }
                 }
             }
-            .padding(8)
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(CP.ground)
+
+            CreditFooter()
         }
+        .font(CP.body)
+        .foregroundStyle(CP.ink)
+        .tint(CP.blue)
+        .preferredColorScheme(.light)
         .id(store.lang)   // วาดหน้าจอใหม่ทั้งหมดเมื่อเปลี่ยนภาษา
-        .navigationTitle("Hosts Manager")
-        .frame(minWidth: 1040, minHeight: 560)
-        .sheet(isPresented: $store.showAdd) { AddEntrySheet(store: store, form: addForm) }
-        .sheet(isPresented: $store.showImport) { ImportSheet(store: store) }
+        .navigationTitle("Hosts Manager — Colorpack")
+        .frame(minWidth: 1120, minHeight: 680)
+        .sheet(isPresented: $store.showAdd) { AddEntrySheet(store: store, form: addForm).preferredColorScheme(.light) }
+        .sheet(isPresented: $store.showImport) { ImportSheet(store: store).preferredColorScheme(.light) }
         .onAppear { store.loadOnce() }
     }
 }

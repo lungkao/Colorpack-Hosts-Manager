@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.3"
+VERSION="1.4"
 APP="Hosts Manager.app"
 STAGE="build/dmg"
 OUT="build/release/$APP"
@@ -26,6 +26,10 @@ else
 fi
 
 [[ -f AppIcon.icns ]] && cp AppIcon.icns "$OUT/Contents/Resources/AppIcon.icns"
+# ฟอนต์ Kanit + โลโก้ Colorpack / bundle Kanit fonts and the Colorpack logo
+mkdir -p "$OUT/Contents/Resources/Fonts"
+cp ../brand/fonts/Kanit-*.ttf "$OUT/Contents/Resources/Fonts/"
+cp ../brand/colorpack-logo-on-*.png "$OUT/Contents/Resources/"
 
 cat > "$OUT/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +46,8 @@ cat > "$OUT/Contents/Info.plist" <<EOF
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>ATSApplicationFontsPath</key><string>Fonts</string>
+  <key>NSHumanReadableCopyright</key><string>© 2026 COLORPACK CREATION CO., LTD.</string>
 </dict>
 </plist>
 EOF

@@ -14,12 +14,22 @@
     <RootNamespace>HostsManager</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
     <Product>Hosts Manager</Product>
     <Description>Edit the hosts file during website migrations, with one-click DNS flush</Description>
-    <Copyright>lungkao</Copyright>
+    <Company>COLORPACK CREATION CO., LTD.</Company>
+    <Copyright>© 2026 COLORPACK CREATION CO., LTD. (บริษัท คัลเลอร์แพค ครีเอชั่น จำกัด)</Copyright>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <!-- ฟอนต์ Kanit (OFL) และโลโก้ Colorpack ฝังไว้ใน exe / Kanit (OFL) and the Colorpack logo, embedded in the exe -->
+  <ItemGroup>
+    <EmbeddedResource Include="../brand/fonts/Kanit-Regular.ttf" LogicalName="Kanit-Regular.ttf" />
+    <EmbeddedResource Include="../brand/fonts/Kanit-Medium.ttf" LogicalName="Kanit-Medium.ttf" />
+    <EmbeddedResource Include="../brand/fonts/Kanit-SemiBold.ttf" LogicalName="Kanit-SemiBold.ttf" />
+    <EmbeddedResource Include="../brand/colorpack-logo-on-dark.png" LogicalName="colorpack-logo-on-dark.png" />
+    <EmbeddedResource Include="../brand/colorpack-logo-on-light.png" LogicalName="colorpack-logo-on-light.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />

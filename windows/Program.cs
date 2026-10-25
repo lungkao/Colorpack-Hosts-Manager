@@ -36,6 +36,7 @@ namespace HostsManager
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             L.Lang = Settings.LoadLang();
+            CP.LoadFonts();
 
             if (args.Contains("--smoke"))
             {
