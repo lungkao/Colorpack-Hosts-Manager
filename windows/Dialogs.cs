@@ -123,6 +123,7 @@ namespace HostsManager
             ClientSize = new Size(900, 580);
             MinimumSize = new Size(640, 400);
             ShowInTaskbar = false;
+            ShowIcon = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
 
@@ -172,7 +173,7 @@ namespace HostsManager
             cHosts.DefaultCellStyle.Font = mono;
             var cTag = new DataGridViewTextBoxColumn { HeaderText = "", Width = 140, ReadOnly = true };
             var cNote = new DataGridViewTextBoxColumn { HeaderText = L.T("หมายเหตุ", "Note"), Width = 150, ReadOnly = true };
-            var cWhere = new DataGridViewTextBoxColumn { HeaderText = L.T("ตำแหน่ง", "Position"), Width = 70, ReadOnly = true };
+            var cWhere = new DataGridViewTextBoxColumn { HeaderText = L.T("ตำแหน่ง", "Position"), Width = 95, ReadOnly = true };
             list.Columns.AddRange(colSel, cIp, cHosts, cTag, cNote, cWhere);
             foreach (DataGridViewColumn c in list.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
             list.CurrentCellDirtyStateChanged += (s, e) =>
@@ -215,6 +216,7 @@ namespace HostsManager
             CancelButton = cancel;
 
             Rebuild();
+            Shown += (s, e) => { list.ClearSelection(); search.Focus(); };
         }
 
         bool Matches(ImportCandidate c)
@@ -242,6 +244,7 @@ namespace HostsManager
                 else if (!c.RealDomain) list.Rows[i].Cells[3].Style.ForeColor = Color.Gray;
             }
             updating = false;
+            list.ClearSelection();
             UpdateCount();
         }
 

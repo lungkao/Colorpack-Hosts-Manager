@@ -212,7 +212,7 @@ namespace HostsManager
                 doc.Parse(raw.Text);
                 RebuildGrid();
                 raw.Text = ToCrlf(doc.Compose());
-                SetStatus(L.T("นำข้อความไปใช้แล้ว — กดบันทึกเพื่อเขียนลงไฟล์", "Text applied — click Save to write the file"));
+                SetStatus(() => L.T("นำข้อความไปใช้แล้ว — กดบันทึกเพื่อเขียนลงไฟล์", "Text applied — click Save to write the file"));
             };
             var rawButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 40, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(4) };
             rawButtons.Controls.Add(rawApply);
@@ -312,6 +312,8 @@ namespace HostsManager
             checkLabel.Text = L.T("ตรวจโดเมน:", "Check domain:");
             checkBtn.Text = L.T("ตรวจ", "Check");
             dirtyLabel.Text = L.T("● ยังไม่ได้บันทึก", "● Unsaved changes");
+            checkResult.Font = L.Lang == Lang.Th ? Font : Mono;
+            if (statusText != null) statusLabel.Text = statusText();
 
             grid.Invalidate();
             UpdateState();
@@ -340,6 +342,8 @@ namespace HostsManager
                 grid.Rows[i].Tag = e;
             }
             updating = false;
+            grid.ClearSelection();
+            grid.CurrentCell = null;
             UpdateState();
         }
 
@@ -438,11 +442,11 @@ namespace HostsManager
                 if (lastIP.Length == 0 && doc.Entries.Count > 0) lastIP = doc.Entries.Last().Ip;
                 RebuildGrid();
                 if (tabs.SelectedTab == tabRaw) raw.Text = ToCrlf(doc.Compose());
-                SetStatus(L.T($"โหลดไฟล์ hosts แล้ว ({Now()})", $"Loaded hosts file ({Now()})") + "  —  " + hostsPath);
+                SetStatus(() => L.T($"โหลดไฟล์ hosts แล้ว ({Now()})", $"Loaded hosts file ({Now()})") + "  —  " + hostsPath);
             }
             catch (Exception ex)
             {
-                SetStatus(L.T("อ่านไฟล์ไม่ได้: ", "Can't read file: ") + ex.Message);
+                SetStatus(() => L.T("อ่านไฟล์ไม่ได้: ", "Can't read file: ") + ex.Message);
             }
         }
 
@@ -454,7 +458,7 @@ namespace HostsManager
                 var r = doc.Add(d.IpText, d.DomainList, d.AddWww, d.NoteText);
                 lastIP = d.IpText;
                 RebuildGrid();
-                SetStatus(L.T($"เพิ่ม {r.added} / อัปเดต {r.updated} รายการ — อย่าลืมกดบันทึก",
+                SetStatus(() => L.T($"เพิ่ม {r.added} / อัปเดต {r.updated} รายการ — อย่าลืมกดบันทึก",
                               $"Added {r.added} / updated {r.updated} — don't forget to Save"));
             }
         }
@@ -466,7 +470,7 @@ namespace HostsManager
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 int n = doc.ImportSelected(d.Candidates);
                 RebuildGrid();
-                SetStatus(L.T($"นำเข้า {n} รายการจากไฟล์เดิม — ตรวจดูแล้วกดบันทึก",
+                SetStatus(() => L.T($"นำเข้า {n} รายการจากไฟล์เดิม — ตรวจดูแล้วกดบันทึก",
                               $"Imported {n} existing entries — review, then Save"));
             }
         }
@@ -483,7 +487,7 @@ namespace HostsManager
             var bad = doc.Entries.FirstOrDefault(e => e.IsValid && !Util.IsValidIP(e.Ip));
             if (bad != null)
             {
-                SetStatus(L.T("IP ไม่ถูกต้อง: ", "Invalid IP: ") + $"{bad.Ip} ({bad.Hosts})");
+                SetStatus(() => L.T("IP ไม่ถูกต้อง: ", "Invalid IP: ") + $"{bad.Ip} ({bad.Hosts})");
                 MessageBox.Show(this, L.T("IP ไม่ถูกต้อง: ", "Invalid IP: ") + bad.Ip, "Hosts Manager",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -496,7 +500,7 @@ namespace HostsManager
                 if (MessageBox.Show(this, msg, "Hosts Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                         MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                 {
-                    SetStatus(L.T("ยังไม่ได้บันทึก — แก้แถวที่มีเครื่องหมาย ⚠ ก่อน", "Not saved — fix the rows marked ⚠ first"));
+                    SetStatus(() => L.T("ยังไม่ได้บันทึก — แก้แถวที่มีเครื่องหมาย ⚠ ก่อน", "Not saved — fix the rows marked ⚠ first"));
                     return;
                 }
             }
@@ -513,7 +517,7 @@ namespace HostsManager
                 File.WriteAllText(hostsPath, ToCrlf(doc.Compose()), new UTF8Encoding(false));
                 bool flushed = RunFlush();
                 LoadHosts();
-                SetStatus(flushed
+                SetStatus(() => flushed
                     ? L.T($"✓ บันทึกและล้าง DNS แล้ว ({Now()}) — สำรองไฟล์เดิมไว้ที่ {backup}",
                           $"✓ Saved and flushed DNS ({Now()}) — backup at {backup}")
                     : L.T($"✓ บันทึกแล้ว ({Now()}) แต่ล้าง DNS ไม่สำเร็จ", $"✓ Saved ({Now()}) but DNS flush failed"));
@@ -522,19 +526,20 @@ namespace HostsManager
             {
                 var msg = L.T("ไม่มีสิทธิ์เขียนไฟล์ hosts — ปิดแอปแล้วเปิดใหม่ด้วย “Run as administrator” หรือโปรแกรมแอนติไวรัสอาจกันการแก้ไฟล์นี้อยู่",
                               "No permission to write the hosts file — reopen the app with “Run as administrator”, or your antivirus may be blocking changes to this file.");
-                SetStatus("✗ " + msg);
+                SetStatus(() => "✗ " + msg);
                 MessageBox.Show(this, msg, "Hosts Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception ex)
             {
-                SetStatus(L.T("✗ บันทึกไม่สำเร็จ: ", "✗ Save failed: ") + ex.Message);
+                SetStatus(() => L.T("✗ บันทึกไม่สำเร็จ: ", "✗ Save failed: ") + ex.Message);
                 MessageBox.Show(this, ex.Message, "Hosts Manager", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         void Flush()
         {
-            SetStatus(RunFlush()
+            bool ok = RunFlush();
+            SetStatus(() => ok
                 ? L.T($"✓ ล้าง DNS แล้ว ({Now()})", $"✓ DNS flushed ({Now()})")
                 : L.T("✗ ล้าง DNS ไม่สำเร็จ", "✗ DNS flush failed"));
         }
@@ -580,8 +585,8 @@ namespace HostsManager
                 var (local, pub) = t.Result;
                 var sb = new StringBuilder();
                 sb.AppendLine(L.T("โดเมน: ", "Domain: ") + d);
-                sb.AppendLine(L.T("เครื่องนี้เห็น (hosts/แคช):  ", "This PC sees (hosts/cache): ") + (local.Count == 0 ? "-" : string.Join(", ", local)));
-                sb.Append(L.T("DNS สาธารณะ (1.1.1.1):     ", "Public DNS (1.1.1.1):        ") + (pub.Count == 0 ? "-" : string.Join(", ", pub)));
+                sb.AppendLine(L.T("เครื่องนี้เห็น (hosts/แคช): ", "This PC sees (hosts/cache): ") + (local.Count == 0 ? "-" : string.Join(", ", local)));
+                sb.Append(L.T("DNS สาธารณะ (1.1.1.1): ", "Public DNS (1.1.1.1):        ") + (pub.Count == 0 ? "-" : string.Join(", ", pub)));
                 if (local.Count > 0 && pub.Count > 0)
                     sb.Append(local.Intersect(pub).Any()
                         ? L.T("\n→ ตรงกับ DNS จริงแล้ว", "\n→ Matches real DNS")
@@ -607,9 +612,18 @@ namespace HostsManager
             MessageBox.Show(this, msg, "Hosts Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2) == DialogResult.Yes;
 
-        void SetStatus(string s) => statusLabel.Text = s;
+        Func<string> statusText;
+        string stamp = "";
 
-        static string Now() => DateTime.Now.ToString("HH:mm:ss");
+        /// <summary>ข้อความสถานะที่แปลใหม่ได้เมื่อสลับภาษา / status text that re-translates on language switch</summary>
+        void SetStatus(Func<string> f)
+        {
+            stamp = DateTime.Now.ToString("HH:mm:ss");
+            statusText = f;
+            statusLabel.Text = f();
+        }
+
+        string Now() => stamp;
 
         static string ToCrlf(string s) => s.Replace("\r\n", "\n").Replace("\n", "\r\n");
 
@@ -668,7 +682,7 @@ namespace HostsManager
                 L.Lang = lang;
                 ApplyTexts();
                 var tag = lang == Lang.Th ? "th" : "en";
-                checkResult.Text = L.T("โดเมน: client-shop.co.th\nเครื่องนี้เห็น (hosts/แคช):  203.0.113.10\nDNS สาธารณะ (1.1.1.1):     198.51.100.7\n→ เครื่องนี้ชี้ไปคนละที่กับ DNS จริง (กำลังใช้ค่าจาก hosts)",
+                checkResult.Text = L.T("โดเมน: client-shop.co.th\nเครื่องนี้เห็น (hosts/แคช): 203.0.113.10\nDNS สาธารณะ (1.1.1.1): 198.51.100.7\n→ เครื่องนี้ชี้ไปคนละที่กับ DNS จริง (กำลังใช้ค่าจาก hosts)",
                                        "Domain: client-shop.co.th\nThis PC sees (hosts/cache): 203.0.113.10\nPublic DNS (1.1.1.1):        198.51.100.7\n→ This PC points somewhere different from real DNS (using hosts)");
                 tabs.SelectedTab = tabList;
                 Capture(this, Path.Combine(dir, $"1-main-{tag}.png"));
