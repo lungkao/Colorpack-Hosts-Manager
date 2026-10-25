@@ -204,6 +204,25 @@ final class HostsStore: ObservableObject {
 
     var isDirty: Bool { composed != savedSnapshot }
 
+    // MARK: รายการที่ยังไม่บันทึก / unsaved rows
+
+    /// บรรทัดในบล็อกของแอปตามที่อยู่ในไฟล์จริงตอนนี้ / block lines as they are in the file on disk
+    @Published var savedEntryLines: Set<String> = []
+
+    /// แถวนี้ยังไม่ได้บันทึก (เพิ่มใหม่หรือแก้ไข) / this row is new or changed since the last save
+    func isUnsaved(_ e: HostEntry) -> Bool { e.isValid && !savedEntryLines.contains(e.line()) }
+
+    /// จำนวนแถวที่ลบไปแล้วแต่ยังไม่บันทึก / rows removed but not saved yet
+    var unsavedRemovedCount: Int {
+        let current = Set(entries.flatMap { $0.hostList.map { $0.lowercased() } })
+        return savedEntryLines.filter { line in
+            guard let e = HostEntry.parse(line) else { return false }
+            return !e.hostList.contains { current.contains($0.lowercased()) }
+        }.count
+    }
+
+    var unsavedCount: Int { entries.filter(isUnsaved).count + unsavedRemovedCount }
+
     private var didInitialLoad = false
     /// โหลดครั้งแรกครั้งเดียว (กันไม่ให้การเปลี่ยนภาษาทิ้งงานที่ยังไม่บันทึก)
     func loadOnce() {
@@ -377,6 +396,7 @@ final class HostsStore: ObservableObject {
             let text = try String(contentsOfFile: hostsPath, encoding: .utf8)
             parse(text)
             savedSnapshot = composed
+            savedEntryLines = Set(entries.filter(\.isValid).map { $0.line() })
             if lastIP.isEmpty, let ip = entries.last?.ip { lastIP = ip }
             status = tr("โหลด /etc/hosts แล้ว (\(nowString()))", "Loaded /etc/hosts (\(nowString()))")
         } catch {
@@ -517,6 +537,13 @@ final class HostsStore: ObservableObject {
                              "\n→ This Mac points somewhere different from real DNS (using hosts)")
                         : tr("\n→ ตรงกับ DNS จริงแล้ว", "\n→ Matches real DNS")
                 }
+                if self.entries.contains(where: { self.isUnsaved($0) && $0.hostList.contains { $0.lowercased() == d } }) {
+                    out += tr("\n⚠ โดเมนนี้อยู่ในรายการที่ยังไม่บันทึก — ค่าที่เห็นยังไม่ใช่ IP ใหม่ กด “บันทึก” ก่อน แล้วตรวจอีกครั้ง",
+                              "\n⚠ This domain is in a row that isn't saved yet — the result above is NOT the new IP. Click “Save” first, then check again")
+                } else if self.isDirty {
+                    out += tr("\n⚠ ยังมีการแก้ไขที่ไม่ได้บันทึก — กด “บันทึก” เพื่อให้มีผลกับเครื่อง",
+                              "\n⚠ There are unsaved changes — click “Save” to apply them")
+                }
                 self.checkResult = out
                 self.checking = false
             }
@@ -526,7 +553,7 @@ final class HostsStore: ObservableObject {
 
 // MARK: - Colorpack theme (ธีมบริษัท)
 
-let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.4"
+let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.5"
 
 enum CP {
     static func hex(_ v: UInt32) -> Color {
@@ -637,6 +664,7 @@ struct CPPills<T: Hashable>: View {
 struct EntryRow: View {
     @Binding var entry: HostEntry
     var issues: [HostsStore.Issue]
+    var unsaved = false
     var onCheck: () -> Void
     var onDelete: () -> Void
 
@@ -644,6 +672,15 @@ struct EntryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if unsaved {
+                Label(tr("ยังไม่บันทึก — กด “บันทึก” เพื่อให้มีผล", "Not saved yet — click “Save” to apply"),
+                      systemImage: "pencil.circle.fill")
+                    .font(CP.font(12, .medium))
+                    .foregroundStyle(CP.orangeDeep)
+                    .padding(.horizontal, 10).padding(.vertical, 3)
+                    .background(Capsule().fill(CP.orangeTint))
+                    .padding(.leading, 62)
+            }
             HStack(spacing: 10) {
                 Toggle("", isOn: $entry.enabled)
                     .labelsHidden()
@@ -697,6 +734,10 @@ struct EntryRow: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(.leading, 6)
+        .overlay(alignment: .leading) {
+            if unsaved { RoundedRectangle(cornerRadius: 2).fill(CP.orange).frame(width: 4) }
+        }
         .opacity(entry.enabled ? 1 : 0.5)
     }
 }
@@ -730,7 +771,25 @@ struct EntriesView: View {
             let issues = store.issues
             let severe = issues.values.flatMap { $0 }.filter(\.severe).count
             let importableCount = store.importableCount
+            let unsaved = store.unsavedCount
             VStack(spacing: 12) {
+                if unsaved > 0 {
+                    HStack(spacing: 14) {
+                        Label(tr("มีการแก้ไข \(unsaved) รายการที่ยังไม่บันทึก — ยังไม่มีผลกับเครื่อง",
+                                 "\(unsaved) change(s) not saved yet — they don't affect this Mac until you save"),
+                              systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(CP.blueDeep)
+                        Spacer()
+                        Button { store.save() } label: {
+                            Label(tr("บันทึกตอนนี้", "Save now"), systemImage: "square.and.arrow.down")
+                        }
+                        .buttonStyle(CPButton(kind: .primary, small: true))
+                    }
+                    .font(CP.font(15, .medium))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(CP.blueTint))
+                }
                 if severe > 0 || importableCount > 0 {
                     HStack(spacing: 14) {
                         if severe > 0 {
@@ -768,6 +827,7 @@ struct EntriesView: View {
                         ForEach($store.entries) { $e in
                             EntryRow(entry: $e,
                                      issues: issues[e.id] ?? [],
+                                     unsaved: store.isUnsaved(e),
                                      onCheck: { store.check(e.hostList.first ?? "") },
                                      onDelete: { store.delete(e.id) })
                                 .listRowSeparatorTint(CP.line)

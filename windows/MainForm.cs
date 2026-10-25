@@ -38,7 +38,22 @@ namespace HostsManager
         // list tab
         Panel banner;
         Label bannerLabel;
-        RoundButton bannerImport;
+        RoundButton bannerImport, bannerSave;
+        HashSet<string> savedLines = new HashSet<string>();
+
+        /// <summary>แถวนี้เพิ่มใหม่หรือแก้ไขแล้วยังไม่บันทึก / row is new or changed since the last save</summary>
+        bool IsUnsaved(HostEntry e) => e.IsValid && !savedLines.Contains(e.Line());
+
+        /// <summary>แถวที่ลบไปแล้วแต่ยังไม่บันทึก / rows removed but not saved yet</summary>
+        int UnsavedRemovedCount()
+        {
+            var current = new HashSet<string>(doc.Entries.SelectMany(x => x.HostList).Select(h => h.ToLowerInvariant()));
+            return savedLines.Count(l =>
+            {
+                var e = HostEntry.Parse(l);
+                return e != null && !e.HostList.Any(h => current.Contains(h.ToLowerInvariant()));
+            });
+        }
         DataGridView grid;
         DataGridViewCheckBoxColumn colOn;
         DataGridViewTextBoxColumn colIp, colHosts, colNote, colIssues;
@@ -137,6 +152,9 @@ namespace HostsManager
             var bannerFlow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, BackColor = CP.OrangeTint };
             bannerFlow.Controls.Add(bannerLabel);
             bannerFlow.Controls.Add(bannerImport);
+            bannerSave = new RoundButton(RoundButton.Kinds.Primary, small: true) { Margin = new Padding(8, 2, 0, 0) };
+            bannerSave.Click += (s, e) => Save();
+            bannerFlow.Controls.Add(bannerSave);
             banner = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(14, 6, 14, 4), BackColor = CP.OrangeTint, Visible = false };
             banner.Controls.Add(bannerFlow);
 
@@ -429,7 +447,7 @@ namespace HostsManager
             if (grid == null) return;
             updating = true;
             var issues = doc.Issues();
-            int severe = 0;
+            int severe = 0, unsaved = 0;
             foreach (DataGridViewRow row in grid.Rows)
             {
                 if (!(row.Tag is HostEntry e)) continue;
@@ -443,7 +461,19 @@ namespace HostsManager
                 row.Cells[colHosts.Index].Style.BackColor = hasSevere ? Color.FromArgb(255, 237, 213) : Color.Empty;
                 row.Cells[colIp.Index].Style.ForeColor = Util.IsValidIP(e.Ip) ? Color.Empty : Color.Red;
                 row.DefaultCellStyle.ForeColor = e.Enabled ? Color.Empty : Color.FromArgb(160, 160, 160);
+                // แถวที่ยังไม่บันทึก: พื้นส้มอ่อน + ป้ายบอก / unsaved rows: orange tint + label
+                bool unsavedRow = IsUnsaved(e);
+                if (unsavedRow) unsaved++;
+                row.DefaultCellStyle.BackColor = unsavedRow ? CP.OrangeTint : Color.Empty;
+                if (unsavedRow)
+                {
+                    var note = L.T("✎ ยังไม่บันทึก — กด “บันทึก” เพื่อให้มีผล", "✎ Not saved yet — click “Save” to apply");
+                    var cur = row.Cells[colIssues.Index].Value as string ?? "";
+                    row.Cells[colIssues.Index].Value = cur.Length == 0 ? note : note + Environment.NewLine + cur;
+                    if (!hasSevere) row.Cells[colIssues.Index].Style.ForeColor = CP.OrangeDeep;
+                }
             }
+            unsaved += UnsavedRemovedCount();
             updating = false;
 
             int importable = doc.ImportableCount();
@@ -455,11 +485,15 @@ namespace HostsManager
                                    $"Import from existing hosts file ({importable} domains)…");
 
             var parts = new List<string>();
+            if (unsaved > 0) parts.Add(L.T($"✎ มีการแก้ไข {unsaved} รายการที่ยังไม่บันทึก — ยังไม่มีผลกับเครื่อง",
+                                           $"✎ {unsaved} change(s) not saved yet — they don't affect this PC until you save"));
             if (severe > 0) parts.Add(L.T($"⚠ พบโดเมนซ้ำที่ชี้คนละ IP {severe} จุด", $"⚠ {severe} duplicate domain(s) point to different IPs"));
             if (importable > 0) parts.Add(L.T($"มี {importable} โดเมนในไฟล์เดิมที่แอปยังไม่ได้จัดการ", $"{importable} domain(s) in the file aren't managed by this app"));
             banner.Visible = hasRows && parts.Count > 0;
             bannerLabel.Text = string.Join("    ", parts);
-            bannerLabel.ForeColor = severe > 0 ? Orange : Muted;
+            bannerLabel.ForeColor = severe > 0 || unsaved > 0 ? Orange : Muted;
+            bannerSave.Visible = unsaved > 0;
+            bannerSave.Text = L.T("บันทึกตอนนี้", "Save now");
             bannerImport.Visible = importable > 0;
             bannerImport.Text = L.T("เลือกนำเข้ารายการเดิม…", "Choose entries to import…");
 
@@ -515,6 +549,7 @@ namespace HostsManager
             {
                 doc.Parse(File.ReadAllText(hostsPath));
                 savedSnapshot = doc.Compose();
+                savedLines = new HashSet<string>(doc.Entries.Where(x => x.IsValid).Select(x => x.Line()));
                 if (lastIP.Length == 0 && doc.Entries.Count > 0) lastIP = doc.Entries.Last().Ip;
                 RebuildGrid();
                 if (tabs.SelectedTab == tabRaw) raw.Text = ToCrlf(doc.Compose());
@@ -669,6 +704,12 @@ namespace HostsManager
                         ? L.T("\n→ ตรงกับ DNS จริงแล้ว", "\n→ Matches real DNS")
                         : L.T("\n→ เครื่องนี้ชี้ไปคนละที่กับ DNS จริง (กำลังใช้ค่าจาก hosts)",
                               "\n→ This PC points somewhere different from real DNS (using hosts)"));
+                if (doc.Entries.Any(x => IsUnsaved(x) && x.HostList.Any(h => h.ToLowerInvariant() == d)))
+                    sb.Append(L.T("\n⚠ โดเมนนี้อยู่ในรายการที่ยังไม่บันทึก — ค่าที่เห็นยังไม่ใช่ IP ใหม่ กด “บันทึก” ก่อน แล้วตรวจอีกครั้ง",
+                                  "\n⚠ This domain is in a row that isn't saved yet — the result above is NOT the new IP. Click “Save” first, then check again"));
+                else if (IsDirty)
+                    sb.Append(L.T("\n⚠ ยังมีการแก้ไขที่ไม่ได้บันทึก — กด “บันทึก” เพื่อให้มีผลกับเครื่อง",
+                                  "\n⚠ There are unsaved changes — click “Save” to apply them"));
                 checkResult.Text = sb.ToString();
                 checkBtn.Enabled = true;
                 FitCheckCard();

@@ -14,7 +14,7 @@
     <RootNamespace>HostsManager</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Product>Hosts Manager</Product>
     <Description>Edit the hosts file during website migrations, with one-click DNS flush</Description>
     <Company>COLORPACK CREATION CO., LTD.</Company>

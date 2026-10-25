@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.4"
+VERSION="1.5"
 APP="Hosts Manager.app"
 STAGE="build/dmg"
 OUT="build/release/$APP"

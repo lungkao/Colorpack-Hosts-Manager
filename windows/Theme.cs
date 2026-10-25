@@ -17,7 +17,7 @@ namespace HostsManager
 {
     public static class CP
     {
-        public const string Version = "1.4";
+        public const string Version = "1.5";
         public const string RepoUrl = "https://github.com/lungkao/Colorpack-Hosts-Manager";
 
         static Color Hex(int v) => Color.FromArgb((v >> 16) & 255, (v >> 8) & 255, v & 255);

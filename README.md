@@ -143,7 +143,7 @@ If you find **Hosts Manager** helpful, you can support the developer by buying a
   <sub>COLORPACK CREATION CO., LTD.</sub><br><br>
   © 2026 บริษัท คัลเลอร์แพค ครีเอชั่น จำกัด สงวนลิขสิทธิ์<br>
   © 2026 COLORPACK CREATION CO., LTD. All rights reserved.<br>
-  <a href="https://colorpack.co.th/">colorpack.co.th</a> · Hosts Manager v1.4
+  <a href="https://colorpack.co.th/">colorpack.co.th</a> · Hosts Manager v1.5
 </p>
 
 <sub>Kanit font © The Kanit Project Authors, licensed under the SIL Open Font License 1.1 (<code>brand/fonts/OFL.txt</code>).</sub>

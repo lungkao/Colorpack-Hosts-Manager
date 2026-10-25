@@ -50,8 +50,8 @@ cat > "$OUT/Contents/Info.plist" <<'EOF'
   <key>CFBundleName</key><string>Hosts Manager</string>
   <key>CFBundleDisplayName</key><string>Hosts Manager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.4</string>
-  <key>CFBundleVersion</key><string>1.4</string>
+  <key>CFBundleShortVersionString</key><string>1.5</string>
+  <key>CFBundleVersion</key><string>1.5</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>CFBundleIconFile</key><string>AppIcon</string>
